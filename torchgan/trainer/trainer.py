@@ -10,7 +10,7 @@ class Trainer(object):
         self.generator = generator
         self.discriminator = discriminator
         self.optimizer_generator = optimizer_generator
-        self.optimizer_discriminator = optimizer_generator
+        self.optimizer_discriminator = optimizer_discriminator
         if lr_generator == -1:
             self.lr_generator = get_default_lr(self.optimizer_generator)
         if lr_discriminator == -1:
@@ -21,6 +21,7 @@ class Trainer(object):
         self.checkpoints = checkpoints
         self.retain_checkpoints = retain_checkpoints
         self.recon = recon
+        self.test_noise = torch.randn(self.sample_size, self.generator.input_size, 1, 1)
         self.generator_losses = []
         self.discriminator_losses = []
         self.start_epoch = 0
@@ -74,18 +75,21 @@ class Trainer(object):
 
     def sample_images(self, epoch, nrow=8):
         with torch.no_grad():
-            images = self.generator(self.test_noise)
+            images = self.generator(self.test_noise.to(device))
             img = torchvision.utils.make_grid(images)
             torchvision.utils.save_image(img, "{}/epoch{}.png".format(self.recon, epoch+1), nrow=nrow)
 
     def train_logger(self):
         pass
 
-    def train(self):
+    def generator_train_loop(self):
         pass
 
-    def train_loop(self):
+    def discriminator_train_loop(self):
         pass
 
-    def __call__(self):
+    def train(self, data_loader, verbose=1):
         pass
+
+    def __call__(self, *args, **kwargs):
+        self.train(*args, **kwargs)
