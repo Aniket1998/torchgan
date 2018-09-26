@@ -2,6 +2,8 @@ import torch
 import torchvision
 from warnings import warn
 
+__all__ = ['Trainer']
+
 class Trainer(object):
     def __init__(self, generator, discriminator, optimizer_generator, optimizer_discriminator,
                  generator_loss, discriminator_loss, device=torch.device("cuda:0"),
@@ -34,8 +36,8 @@ class Trainer(object):
         self.checkpoints = checkpoints
         self.retain_checkpoints = retain_checkpoints
         self.recon = recon
-        self.test_noise = torch.randn(self.sample_size, self.generator.encoding_dims,
-                                      1, 1) if test_noise is None else test_noise
+        self.test_noise = torch.randn(self.sample_size, self.generator.encoding_dims, 1, 1,
+                                    device=self.device) if test_noise is None else test_noise
         self.loss_information = {
             'generator_losses': [],
             'discriminator_loss': [],
@@ -44,6 +46,10 @@ class Trainer(object):
         }
         if "loss_information" in kwargs:
             self.loss_information.update(kwargs["loss_information"])
+        self.targets = {
+            'discriminator_target_real': torch.ones(self.batch_size, target_dim, 1, 1, device=self.device),
+            'discriminator_target_real': torch.zeros(self.batch_size, target_dim, 1, 1, device=self.device)
+        }
         self.start_epoch = 0
         self.last_retained_checkpoint = 0
 
@@ -125,8 +131,7 @@ class Trainer(object):
 
     def generator_train_iter(self, **kwargs):
         sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
-        g_loss = self.generator_loss(self.discriminator(self.generator(sampled_noise)),
-                                     self.targets["generator_target"])
+        g_loss = self.generator_loss(self.discriminator(self.generator(sampled_noise)))
         g_loss.backward()
         self.loss_information['generator_losses'].append(g_loss)
         self.loss_information['generator_iters'] += 1
@@ -135,7 +140,7 @@ class Trainer(object):
         sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
         d_real = self.discriminator(images).squeeze()
         d_loss_real = self.discriminator_loss(d_real, self.targets["discriminator_target_real"])
-        d_fake = self.discriminator(self.generator(sampled_noise)).squeeze()
+        d_fake = self.discriminator(self.generator(sampled_noise).detach()).squeeze()
         d_loss_fake = self.discriminator_loss(d_fake, self.targets["discriminator_target_fake"])
         d_loss = d_loss_fake + d_loss_real
         d_loss.backward()
