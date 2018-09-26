@@ -37,7 +37,7 @@ class Trainer(object):
         self.retain_checkpoints = retain_checkpoints
         self.recon = recon
         self.test_noise = torch.randn(self.sample_size, self.generator.encoding_dims, 1, 1,
-                                    device=self.device) if test_noise is None else test_noise
+                                      device=self.device) if test_noise is None else test_noise
         self.loss_information = {
             'generator_losses': [],
             'discriminator_loss': [],
@@ -46,9 +46,11 @@ class Trainer(object):
         }
         if "loss_information" in kwargs:
             self.loss_information.update(kwargs["loss_information"])
+        if "target_dim" in kwargs:
+            target_dim = 1
         self.targets = {
-            'discriminator_target_real': torch.ones(self.batch_size, target_dim, 1, 1, device=self.device),
-            'discriminator_target_real': torch.zeros(self.batch_size, target_dim, 1, 1, device=self.device)
+            'discriminator_target_real': torch.ones(self.batch_size, target_dim, device=self.device).squeeze(),
+            'discriminator_target_fake': torch.zeros(self.batch_size, target_dim, device=self.device).squeeze()
         }
         self.start_epoch = 0
         self.last_retained_checkpoint = 0
