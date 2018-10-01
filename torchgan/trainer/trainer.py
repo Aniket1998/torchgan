@@ -8,7 +8,7 @@ class Trainer(object):
     def __init__(self, generator, discriminator, optimizer_generator, optimizer_discriminator,
                  generator_loss, discriminator_loss, device=torch.device("cuda:0"),
                  batch_size=128, sample_size=8, epochs=5, checkpoints="./model/gan",
-                 retain_checkpoints=5, recon="./images/", test_noise=None, **kwargs):
+                 retain_checkpoints=5, recon="./images", test_noise=None, **kwargs):
         self.device = device
         self.generator = generator.to(self.device)
         self.discriminator = discriminator.to(self.device)
@@ -40,7 +40,7 @@ class Trainer(object):
                                       device=self.device) if test_noise is None else test_noise
         self.loss_information = {
             'generator_losses': [],
-            'discriminator_loss': [],
+            'discriminator_losses': [],
             'generator_iters': 0,
             'discriminator_iters': 0,
         }
@@ -64,6 +64,7 @@ class Trainer(object):
         if self.last_retained_checkpoint == self.retain_checkpoints:
             self.last_retained_checkpoint = 0
         save_path = self.checkpoints + str(self.last_retained_checkpoint) + '.model'
+        self.last_retained_checkpoint += 1
         print("Saving Model at '{}'".format(save_path))
         model = {
             'epoch': epoch + 1,
@@ -71,8 +72,8 @@ class Trainer(object):
             'discriminator': self.discriminator.state_dict(),
             'optimizer_generator': self.optimizer_generator.state_dict(),
             'optimizer_discriminator': self.optimizer_discriminator.state_dict(),
-            'generator_losses': self.generator_losses,
-            'discriminator_losses': self.discriminator_losses
+            'generator_losses': self.loss_information["generator_losses"],
+            'discriminator_losses': self.loss_information["discriminator_losses"]
         }
         # FIXME(avik-pal): Not a very good function name
         model.update(self.save_model_extras(save_path))
@@ -114,7 +115,7 @@ class Trainer(object):
 
     def _verbose_matching(self, verbose):
         assert verbose >= 0 and verbose <= 5
-        self.save_iter = 10**((6 - verbose) / 2)
+        self.niter_print_losses = 10**((6 - verbose) / 2)
         self.save_epoch = 6 - verbose
         self.generate_images = 6 - verbose
 
@@ -137,7 +138,7 @@ class Trainer(object):
         sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
         g_loss = self.generator_loss(self.discriminator(self.generator(sampled_noise)))
         g_loss.backward()
-        self.loss_information['generator_losses'].append(g_loss)
+        self.loss_information['generator_losses'].append(g_loss.item())
         self.loss_information['generator_iters'] += 1
 
     def discriminator_train_iter(self, images, labels, **kwargs):
@@ -148,7 +149,7 @@ class Trainer(object):
         d_loss_fake = self.discriminator_loss(d_fake, self.targets["discriminator_target_fake"])
         d_loss = d_loss_fake + d_loss_real
         d_loss.backward()
-        self.loss_information['discriminator_losses'].append(d_loss)
+        self.loss_information['discriminator_losses'].append(d_loss.item())
         self.loss_information['discriminator_iters'] += 1
 
     def train(self, data_loader, **kwargs):
@@ -169,6 +170,10 @@ class Trainer(object):
             running_discriminator_loss = 0.0
 
             for images, labels in data_loader:
+
+                if not images.size()[0] == self.batch_size:
+                    continue
+
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
@@ -187,14 +192,17 @@ class Trainer(object):
                 if self.train_stopper():
                     break
 
-                if self.loss_information['discriminator_iters'] % self.niter_print_losses == 0:
+                if self.loss_information['discriminator_iters'] % self.niter_print_losses == 0 \
+                   and not self.loss_information['discriminator_iters'] == 0:
                     # FIXME(avik-pal): Sadly the iteration printed will be the discriminator iters
                     self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
-                                      running_discriminator_loss / self.loss_information['discriminator_iters'],
+                                      running_discriminator_loss / self.loss_information['discriminator_iters'], epoch,
                                       self.loss_information['discriminator_iters'])
 
             self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
-                              running_discriminator_loss / self.loss_information['discriminator_iters'])
+                              running_discriminator_loss / self.loss_information['discriminator_iters'], epoch)
+            self.loss_information['generator_iters'] = 0
+            self.loss_information['discriminator_iters'] = 0
 
         print("Training of the Model is Complete")
 
