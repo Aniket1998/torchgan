@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from .loss import GeneratorLoss, DiscriminatorLoss
+from ..utils import reduce
 
 __all__ = ['EnergyBasedGeneratorLoss', 'EnergyBasedDiscriminatorLoss']
 
@@ -24,12 +25,7 @@ class EnergyBasedGeneratorLoss(GeneratorLoss):
 
     """
     def forward(self, dgz):
-        if self.reduction == 'elementwise_mean':
-            return torch.mean(dgz)
-        elif self.reduction == 'sum':
-            return torch.sum(dgz)
-        else:
-            return dgz
+        return reduce(dgz, self.reduction)
 
 
 class EnergyBasedDiscriminatorLoss(DiscriminatorLoss):
@@ -57,9 +53,4 @@ class EnergyBasedDiscriminatorLoss(DiscriminatorLoss):
         self.margin = margin
 
     def forward(self, dx, dgz):
-        if self.reduction == 'elementwise_mean':
-            return torch.mean(dx + F.relu(-dgz + self.margin))
-        elif self.reduction == 'sum':
-            return torch.sum(dx + F.relu(-dgz + self.margin))
-        else:
-            return dx + F.relu(-dgz + self.margin)
+        return reduce(dx + F.relu(-dgz + self.margin), self.reduction)

@@ -1,6 +1,7 @@
 import torch
 import torch.autograd as autograd
 from .loss import GeneratorLoss, DiscriminatorLoss
+from ..utils import reduce
 
 __all__ = ['WassersteinGeneratorLoss', 'WassersteinDiscriminatorLoss', 'WassersteinGradientPenalty']
 
@@ -53,12 +54,7 @@ class WassersteinDiscriminatorLoss(DiscriminatorLoss):
 
     """
     def forward(self, fx, fgz):
-        if self.reduction == 'elementwise_mean':
-            return torch.mean(fx - fgz)
-        elif self.reduction == 'sum':
-            return torch.sum(fx - fgz)
-        else:
-            return (fx - fgz)
+        return reduce(fgz - fx, self.reduction)
 
 
 class WassersteinGradientPenalty(DiscriminatorLoss):
@@ -112,9 +108,4 @@ class WassersteinGradientPenalty(DiscriminatorLoss):
                                   only_inputs=True)[0]
 
         gradient_penalty = (gradients.norm(2) - 1) ** 2
-        if self.reduction == 'elementwise_mean':
-            return self.lambd * torch.mean(gradient_penalty)
-        elif self.reduction == 'sum':
-            return self.lambd * torch.sum(gradient_penalty)
-        else:
-            return self.lambd * gradient_penalty
+        return reduce(self.lambd * gradient_penalty, self.reduction)

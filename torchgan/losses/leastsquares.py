@@ -1,5 +1,6 @@
 import torch
 from .loss import GeneratorLoss, DiscriminatorLoss
+from ..utils import reduce
 
 __all__ = ['LeastSquaresGeneratorLoss', 'LeastSquaresDiscriminatorLoss']
 
@@ -28,12 +29,7 @@ class LeastSquaresGeneratorLoss(GeneratorLoss):
         self.c = c
 
     def forward(self, dgz):
-        if self.reduction == 'elementwise_mean':
-            return 0.5 * torch.mean((dgz - self.c) ** 2)
-        elif self.reduction == 'sum':
-            return 0.5 * torch.sum((dgz - self.c) ** 2)
-        else:
-            return 0.5 * (dgz - self.c) ** 2
+        return 0.5 * reduce((dgz - self.c) ** 2, self.reduction)
 
 
 class LeastSquaresDiscriminatorLoss(DiscriminatorLoss):
@@ -61,15 +57,5 @@ class LeastSquaresDiscriminatorLoss(DiscriminatorLoss):
         self.b = b
 
     def forward(self, dx, dgz):
-        if self.reduction == 'elementwise_mean':
-            loss = 0.5 * torch.mean((dx - self.b) ** 2)
-            loss += 0.5 * torch.mean((dgz - self.a) ** 2)
-            return loss
-        elif self.reduction == 'sum':
-            loss = 0.5 * torch.sum((dx - self.b) ** 2)
-            loss += 0.5 * torch.sum((dgz - self.a) ** 2)
-            return loss
-        else:
-            loss = 0.5 * ((dx - self.b) ** 2)
-            loss += 0.5 * ((dgz - self.a) ** 2)
-            return loss
+        return 0.5 * (reduce((dx - self.b) ** 2, self.reduction) +
+                      reduce((dgz - self.a) ** 2, self.reduction))

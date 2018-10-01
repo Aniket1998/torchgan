@@ -1,5 +1,6 @@
 import torch
 from .loss import GeneratorLoss, DiscriminatorLoss
+from ..utils import reduce
 
 __all__ = ['BoundaryEquilibriumGeneratorLoss',
            'BoundaryEquilibriumDiscriminatorLoss']
@@ -38,13 +39,8 @@ class BoundaryEquilibriumGeneratorLoss(GeneratorLoss):
         self.k = k
 
     def forward(self, dx, dgz):
-        if self.reduction == 'elementwise_mean':
-            ld = torch.mean(dx - self.k * dgz)
-            lg = torch.mean(dgz)
-        else:
-            ld = torch.sum(dx - self.k * dgz)
-            lg = torch.sum(dgz)
-
+        ld = reduce(dx - self.k * dgz, self.reduction)
+        lg = reduce(dgz, self.reduction)
         self.k += self.lambd * (self.gamma * ld - lg)
         return lg
 
@@ -82,12 +78,7 @@ class BoundaryEquilibriumDiscriminatorLoss(DiscriminatorLoss):
         self.k = k
 
     def forward(self, dx, dgz):
-        if self.reduction == 'elementwise_mean':
-            ld = torch.mean(dx - self.k * dgz)
-            lg = torch.mean(dgz)
-        else:
-            ld = torch.sum(dx - self.k * dgz)
-            lg = torch.sum(dgz)
-
+        ld = reduce(dx - self.k * dgz, self.reduction)
+        lg = reduce(dgz, self.reduction)
         self.k += self.lambd * (self.gamma * ld - lg)
         return ld

@@ -47,12 +47,12 @@ class MinimaxGeneratorLoss(GeneratorLoss):
     def forward(self, dgz):
         if self.nonsaturating:
             target = torch.ones_like(dgz)
-            return F.binary_cross_entropy(dgz, target,
-                                          reduction=self.reduction)
+            return F.binary_cross_entropy_with_logits(dgz, target,
+                                                      reduction=self.reduction)
         else:
             target = torch.zeros_like(dgz)
-            return -1.0 * F.binary_cross_entropy(dgz, target,
-                                                 reduction=self.reduction)
+            return -1.0 * F.binary_cross_entropy_with_logits(dgz, target,
+                                                             reduction=self.reduction)
 
 
 class MinimaxDiscriminatorLoss(DiscriminatorLoss):
@@ -93,8 +93,8 @@ class MinimaxDiscriminatorLoss(DiscriminatorLoss):
     def forward(self, dx, dgz):
         target_ones = torch.ones_like(dgz)
         target_zeros = torch.zeros_like(dx)
-        loss = F.binary_cross_entropy(dx, target_ones,
-                                      reduction=self.reduction)
-        loss += F.binary_cross_entropy(dgz, target_zeros,
-                                       reduction=self.reduction)
+        loss = F.binary_cross_entropy_with_logits(dx, target_ones,
+                                                  reduction=self.reduction)
+        loss += F.binary_cross_entropy_with_logits(dgz, target_zeros,
+                                                   reduction=self.reduction)
         return loss

@@ -1,4 +1,9 @@
-def get_default_lr(optimizer):
-    # FIXME(avik-pal): Have a dictionary that returns the optimal lr correspoding
-    #                  to the optimizer
-    return 0.001
+import torch
+
+def reduce(x, reduction=None):
+    if reduction == "elementwise_mean":
+        return torch.mean(x)
+    elif reduction == "sum":
+        return torch.sum(x)
+    else:
+        return x
