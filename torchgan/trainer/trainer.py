@@ -29,7 +29,7 @@ class Trainer(object):
         if "loss_discriminator_options" in kwargs:
             self.discriminator_loss = discriminator_loss(**kwargs["loss_discriminator_options"])
         else:
-            self.discriminator_loss = self.discriminator_loss()
+            self.discriminator_loss = discriminator_loss()
         self.batch_size = batch_size
         self.sample_size = sample_size
         self.epochs = epochs
@@ -46,8 +46,10 @@ class Trainer(object):
         }
         if "loss_information" in kwargs:
             self.loss_information.update(kwargs["loss_information"])
-        if "target_dim" in kwargs:
+        if not "target_dim" in kwargs:
             target_dim = 1
+        else:
+            target_dim = kwargs["target_dim"]
         self.targets = {
             'discriminator_target_real': torch.ones(self.batch_size, target_dim, device=self.device).squeeze(),
             'discriminator_target_fake': torch.zeros(self.batch_size, target_dim, device=self.device).squeeze()
