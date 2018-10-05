@@ -9,7 +9,7 @@ class Trainer(object):
     def __init__(self, generator, discriminator, optimizer_generator, optimizer_discriminator,
                  generator_loss, discriminator_loss, device=torch.device("cuda:0"),
                  batch_size=128, sample_size=8, epochs=5, checkpoints="./model/gan",
-                 retain_checkpoints=5, recon="./images", test_noise=None, log_tensorboard=None, **kwargs):
+                 retain_checkpoints=5, recon="./images", test_noise=None, log_tensorboard=True, **kwargs):
         self.device = device
         self.generator = generator.to(self.device)
         self.discriminator = discriminator.to(self.device)
@@ -55,9 +55,11 @@ class Trainer(object):
             'discriminator_target_real': torch.ones(self.batch_size, target_dim, device=self.device).squeeze(),
             'discriminator_target_fake': torch.zeros(self.batch_size, target_dim, device=self.device).squeeze()
         }
+        self.total_batches_complete = 0
         self.start_epoch = 0
         self.last_retained_checkpoint = 0
         self.writer = SummaryWriter()
+        self.log_tensorboard = log_tensorboard
         if "display_rows" not in kwargs:
             self.nrow = 8
         else:
@@ -109,8 +111,9 @@ class Trainer(object):
             self.generator_losses = []
             self.discriminator_losses = []
 
-    def _get_step(self, epoch, iters):
-        return self.epoch * self.batch_size + iters
+    def _get_step(self, iters):
+        # FIXME(avik-pal): Not a proper step size. Immediately fix this
+        return self.total_batches_complete * self.batch_size + iters
 
     def sample_images(self, epoch):
         save_path = "{}/epoch{}.png".format(self.recon, epoch + 1)
@@ -121,7 +124,7 @@ class Trainer(object):
             img = torchvision.utils.make_grid(images)
             torchvision.utils.save_image(img, save_path, nrow=self.nrow)
             if self.log_tensorboard:
-                self.writer.add_image("Generated Samples", img, self._get_step(epoch, 0))
+                self.writer.add_image("Generated Samples", img, self._get_step( 0))
         self.generator.train()
 
     def _verbose_matching(self, verbose):
@@ -139,18 +142,18 @@ class Trainer(object):
             if (epoch + 1) % self.generate_images or epoch == self.epochs:
                 self.sample_images(epoch)
             print("Epoch {} Complete | Mean Generator Loss : {} | Mean Discriminator Loss : {}".format(epoch + 1,
-                  running_generator_loss, running_generator_loss))
+                  running_generator_loss, running_discriminator_loss))
         else:
             print("Epoch {} | Iteration {} | Mean Generator Loss : {} | Mean Discriminator Loss : {}".format(
                   epoch + 1, itr + 1, running_generator_loss, running_discriminator_loss))
 
     def tensorboard_log(self, running_generator_loss, running_discriminator_loss, generator_iters,
-                                         discriminator_iters, epoch):
+                                         discriminator_iters):
         if self.log_tensorboard:
             self.writer.add_scalar("Discriminator Loss", running_discriminator_loss,
-                                                    self._get_step(epoch, discriminator_iters))
+                                                    self._get_step(discriminator_iters))
             self.writer.add_scalar("Generator Loss", running_generator_loss,
-                                                    self._get_step(epoch, generator_iters))
+                                                    self._get_step(generator_iters))
 
     def train_stopper(self):
         return False
@@ -194,6 +197,7 @@ class Trainer(object):
 
                 if not images.size()[0] == self.batch_size:
                     continue
+                self.total_batches_complete += 1
 
                 images = images.to(self.device)
                 labels = labels.to(self.device)
