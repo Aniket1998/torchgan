@@ -110,7 +110,7 @@ class Trainer(object):
             self.discriminator_losses = []
 
     def _get_step(self, epoch, iters):
-      return self.epoch * self.batch_size + iters
+        return self.epoch * self.batch_size + iters
 
     def sample_images(self, epoch):
         save_path = "{}/epoch{}.png".format(self.recon, epoch + 1)
