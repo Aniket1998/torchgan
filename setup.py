@@ -35,6 +35,8 @@ VERSION = find_version('torchgan', '__init__.py')
 requirements = [
     'numpy',
     'torch',
+    'torchvision',
+    'tensorboardX',
 ]
 
 setup(

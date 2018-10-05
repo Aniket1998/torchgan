@@ -1,6 +1,7 @@
 import torch
 import torchvision
 from warnings import warn
+from tensorboardX import SummaryWriter
 
 __all__ = ['Trainer']
 
@@ -8,7 +9,7 @@ class Trainer(object):
     def __init__(self, generator, discriminator, optimizer_generator, optimizer_discriminator,
                  generator_loss, discriminator_loss, device=torch.device("cuda:0"),
                  batch_size=128, sample_size=8, epochs=5, checkpoints="./model/gan",
-                 retain_checkpoints=5, recon="./images", test_noise=None, **kwargs):
+                 retain_checkpoints=5, recon="./images", test_noise=None, log_tensorboard=None, **kwargs):
         self.device = device
         self.generator = generator.to(self.device)
         self.discriminator = discriminator.to(self.device)
@@ -46,7 +47,7 @@ class Trainer(object):
         }
         if "loss_information" in kwargs:
             self.loss_information.update(kwargs["loss_information"])
-        if not "target_dim" in kwargs:
+        if "target_dim" not in kwargs:
             target_dim = 1
         else:
             target_dim = kwargs["target_dim"]
@@ -56,6 +57,11 @@ class Trainer(object):
         }
         self.start_epoch = 0
         self.last_retained_checkpoint = 0
+        self.writer = SummaryWriter()
+        if "display_rows" not in kwargs:
+            self.nrow = 8
+        else:
+            self.nrow = kwargs["display_rows"]
 
     def save_model_extras(self, save_path):
         return {}
@@ -103,23 +109,30 @@ class Trainer(object):
             self.generator_losses = []
             self.discriminator_losses = []
 
-    def sample_images(self, epoch, nrow=8):
+    def _get_step(self, epoch, iters):
+      return self.epoch * self.batch_size + iters
+
+    def sample_images(self, epoch):
         save_path = "{}/epoch{}.png".format(self.recon, epoch + 1)
         print("Generating and Saving Images to {}".format(save_path))
         self.generator.eval()
         with torch.no_grad():
             images = self.generator(self.test_noise.to(self.device))
             img = torchvision.utils.make_grid(images)
-            torchvision.utils.save_image(img, save_path, nrow=nrow)
+            torchvision.utils.save_image(img, save_path, nrow=self.nrow)
+            if self.log_tensorboard:
+                self.writer.add_image("Generated Samples", img, self._get_step(epoch, 0))
         self.generator.train()
 
     def _verbose_matching(self, verbose):
+        # TODO(avik-pal) : better logging strategy
         assert verbose >= 0 and verbose <= 5
         self.niter_print_losses = 10**((6 - verbose) / 2)
         self.save_epoch = 6 - verbose
         self.generate_images = 6 - verbose
 
-    def train_logger(self, running_generator_loss, running_discriminator_loss, epoch, itr=None):
+    def train_logger(self, running_generator_loss, running_discriminator_loss, generator_iters, discriminator_iters,
+                                epoch, itr=None):
         if itr is None:
             if (epoch + 1) % self.save_epoch == 0 or epoch == self.epochs:
                 self.save_model(epoch)
@@ -130,6 +143,14 @@ class Trainer(object):
         else:
             print("Epoch {} | Iteration {} | Mean Generator Loss : {} | Mean Discriminator Loss : {}".format(
                   epoch + 1, itr + 1, running_generator_loss, running_discriminator_loss))
+
+    def tensorboard_log(self, running_generator_loss, running_discriminator_loss, generator_iters,
+                                         discriminator_iters, epoch):
+        if self.log_tensorboard:
+            self.writer.add_scalar("Discriminator Loss", running_discriminator_loss,
+                                                    self._get_step(epoch, discriminator_iters))
+            self.writer.add_scalar("Generator Loss", running_generator_loss,
+                                                    self._get_step(epoch, generator_iters))
 
     def train_stopper(self):
         return False
@@ -188,6 +209,10 @@ class Trainer(object):
                 self.optimizer_generator.step()
                 running_generator_loss += self.loss_information['generator_losses'][-1]
 
+                self.tensorboard_log(running_generator_loss / self.loss_information['generator_iters'],
+                    running_discriminator_loss / self.loss_information['discriminator_iters'],
+                    self.loss_information['generator_iters'],
+                    self.loss_information['discriminator_iters'])
                 # NOTE(avik-pal): A small hack to support WGAN
                 if self.train_stopper():
                     break
@@ -196,11 +221,15 @@ class Trainer(object):
                    and not self.loss_information['discriminator_iters'] == 0:
                     # FIXME(avik-pal): Sadly the iteration printed will be the discriminator iters
                     self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
-                                      running_discriminator_loss / self.loss_information['discriminator_iters'], epoch,
+                                      running_discriminator_loss / self.loss_information['discriminator_iters'],
+                                      self.loss_information['generator_iters'],
+                                      self.loss_information['discriminator_iters'], epoch,
                                       self.loss_information['discriminator_iters'])
 
             self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
-                              running_discriminator_loss / self.loss_information['discriminator_iters'], epoch)
+                              running_discriminator_loss / self.loss_information['discriminator_iters'],
+                              self.loss_information['generator_iters'],
+                              self.loss_information['discriminator_iters'], epoch)
             self.loss_information['generator_iters'] = 0
             self.loss_information['discriminator_iters'] = 0
 
@@ -209,3 +238,4 @@ class Trainer(object):
     def __call__(self, data_loader, verbose=1, **kwargs):
         self._verbose_matching(verbose)
         self.train(data_loader, **kwargs)
+        self.writer.close()
