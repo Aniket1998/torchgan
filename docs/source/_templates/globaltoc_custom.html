@@ -1,0 +1,15 @@
+<h3><a href="{{ pathto(master_doc) }}">{{ _('Table Of Contents') }}</a></h3>
+
+<ul>
+  <li><a href="{{ pathto('index') }}">Home</a></li>
+  <li><a href="{{ pathto('datasets') }}">Datasets</a></li>
+  <li><a href="{{ pathto('losses') }}">Losses</a></li>
+  <li><a href="{{ pathto('metrics') }}">Metrics</a></li>
+  <li><a href="{{ pathto('models') }}">Models</a></li>
+  <li><a href="{{ pathto('trainer') }}">Trainer</a></li>
+</ul>
+
+{%- if display_toc %}
+  <hr>
+  {{ toc }}
+{%- endif %}

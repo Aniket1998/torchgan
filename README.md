@@ -1,12 +1,16 @@
-# TorchGAN
+<div align="center">
 
-| **Development Status** | **Build Status** | **Coverage** |
-|:----------------------:|:----------------:|:------------:|
-|[![Project Status: WIP - Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](http://www.repostatus.org/badges/latest/wip.svg)](http://www.repostatus.org/#wip)|[![Build Status](https://travis-ci.com/Aniket1998/TorchGAN.svg?token=xxgQKWvvVHy2q3GrDsMR&branch=master)](https://travis-ci.com/Aniket1998/TorchGAN)|[![Coverage Status](https://coveralls.io/repos/Aniket1998/TorchGAN/badge.svg?branch=master&service=github)](https://coveralls.io/github/Aniket1998/TorchGAN?branch=master) [![codecov.io](http://codecov.io/github/Aniket1998/TorchGAN/coverage.svg?branch=master)](http://codecov.io/github/Aniket1998/TorchGAN?branch=master)|
+  <h1>TorchGAN</h1>
 
-| **Documentation** | **License** | **Slack** |
-|:-----------------:|:-----------:|:---------:|
-|[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://torchgan.github.io/stable/) [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://torchgan.github.io/latest/)|[![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE)|[![](https://img.shields.io/badge/chat-on%20slack-yellow.svg)](https://torchgan.slack.com/)|
+  <a href="http://www.repostatus.org/#wip"><img src="http://www.repostatus.org/badges/latest/wip.svg" alt="Project Status: WIP - Initial development is in progress, but there has not yet been a stable, usable release suitable for the public."></a>
+  <a href="https://travis-ci.com/Aniket1998/TorchGAN"><img src="https://travis-ci.com/Aniket1998/TorchGAN.svg?token=xxgQKWvvVHy2q3GrDsMR&branch=master" alt="Build Status"></a>
+  <a href="https://coveralls.io/github/Aniket1998/TorchGAN?branch=master"><img src="https://coveralls.io/repos/Aniket1998/TorchGAN/badge.svg?branch=master&service=github" alt="Coverage Status"></a>
+  <a href="LICENSE"><img src="http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat" alt="License"></a>
+  <a href="https://torchgan.slack.com/"><img src="https://img.shields.io/badge/chat-on%20slack-yellow.svg" alt="Slack"></a>
+  <a href="https://torchgan.github.io/stable/"><img src="https://img.shields.io/badge/docs-stable-blue.svg" alt="Stable Documentation"></a>
+  <a href="https://torchgan.github.io/latest/"><img src="https://img.shields.io/badge/docs-latest-blue.svg" alt="Latest Documentation"></a><br>
+
+</div>
 
 The torchgan package provides an easy to use and highly customizable API for training GANs.
 
@@ -15,12 +19,19 @@ The torchgan package provides an easy to use and highly customizable API for tra
 From source:
 
 ```bash
-  python setup.py install
+  $ python setup.py install
 ```
 
 ## Documentation
 
-Documentation for the package is not yet ready.
+The documentation for this package can be generated locally.
+
+```bash
+  $ cd docs
+  $ pip install -r requirements.txt
+  $ make html
+```
+Now open the corresponding file from `build` directory.
 
 ## Contributing
 

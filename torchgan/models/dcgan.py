@@ -6,26 +6,21 @@ __all__ = ['DCGANGenerator', 'DCGANDiscriminator']
 
 class DCGANGenerator(Generator):
     r"""Deep Convolutional GAN (DCGAN) generator from
-    "Unsupervised Representation Learning With Deep Convolutional Generative Aversarial Networks
-     by Radford et. al. " <https://arxiv.org/abs/1511.06434>
+    `"Unsupervised Representation Learning With Deep Convolutional Generative Aversarial Networks
+    by Radford et. al. " <https://arxiv.org/abs/1511.06434>`_ paper
 
-     Args:
+    Args:
         encoding_dims (int, optional) : Dimension of the encoding vector sampled from the noise prior. Default 100
-        out_channels (int, optional) : Number of channels in the output Tensor. Default 3
+        out_channels (int, optional) : Number of channels in the output Tensor.
         step_channels (int, optional) : Number of channels in multiples of which the DCGAN steps up
                                         the convolutional features
-                                        The step up is done as dim z -> d - > 2 * d -> 4 * d - > 8 * d
-                                        where d = step_channels. Default 64
-
-        batchnorm (bool, optional) : If True, use batch normalization in the convolutional layers of the generator
-                                     Default True
-
-        nonlinearity(torch.nn.Module, optional) : Nonlinearity to be used in the intermediate convolutional layers
-                                                  Defaults to LeakyReLU(0.2) when None is passed. Default None
-
-        last_nonlinearity(torch.nn.Module, optional) : Nonlinearity to be used in the final convolutional layer
-                                                       Defaults to tanh when None is passed. Default None
-
+                                        The step up is done as dim `z -> d - > 2 * d -> 4 * d - > 8 * d`
+                                        where d = step_channels.
+        batchnorm (bool, optional) : If True, use batch normalization in the convolutional layers of the generator.
+        nonlinearity (torch.nn.Module, optional) : Nonlinearity to be used in the intermediate convolutional layers
+                                                  Defaults to LeakyReLU(0.2) when None is passed.
+        last_nonlinearity (torch.nn.Module, optional) : Nonlinearity to be used in the final convolutional layer
+                                                       Defaults to tanh when None is passed.
     """
     def __init__(self, encoding_dims=100, out_channels=3, step_channels=64,
                  batchnorm=True, nonlinearity=None, last_nonlinearity=None):
@@ -65,26 +60,21 @@ class DCGANGenerator(Generator):
 
 class DCGANDiscriminator(Discriminator):
     r"""Deep Convolutional GAN (DCGAN) discriminator from
-    "Unsupervised Representation Learning With Deep Convolutional Generative Aversarial Networks
-     by Radford et. al. " <https://arxiv.org/abs/1511.06434>
+    `"Unsupervised Representation Learning With Deep Convolutional Generative Aversarial Networks
+    by Radford et. al. " <https://arxiv.org/abs/1511.06434>`_ paper
 
-     Args:
-        encoding_dims (int, optional) : Dimension of the encoding vector sampled from the noise prior. Default 100
-        out_channels (int, optional) : Number of channels in the output Tensor. Default 3
+    Args:
+        encoding_dims (int, optional) : Dimension of the encoding vector sampled from the noise prior.
+        out_channels (int, optional) : Number of channels in the output Tensor.
         step_channels (int, optional) : Number of channels in multiples of which the DCGAN steps up
                                         the convolutional features
-                                        The step up is done as dim z -> d - > 2 * d -> 4 * d - > 8 * d
-                                        where d = step_channels. Default 64
-
-        batchnorm (bool, optional) : If True, use batch normalization in the convolutional layers of the generator
-                                     Default True
-
-        nonlinearity(torch.nn.Module, optional) : Nonlinearity to be used in the intermediate convolutional layers
-                                                  Defaults to LeakyReLU(0.2) when None is passed. Default None
-
-        last_nonlinearity(toch.nn.Module, optional) : Nonlinearity to be used in the final convolutional layer
-                                                      Defaults to sigmoid when None is passed. Default None
-
+                                        The step up is done as dim `z -> d - > 2 * d -> 4 * d - > 8 * d`
+                                        where d = step_channels.
+        batchnorm (bool, optional) : If True, use batch normalization in the convolutional layers of the generator.
+        nonlinearity (torch.nn.Module, optional) : Nonlinearity to be used in the intermediate convolutional layers
+                                                  Defaults to LeakyReLU(0.2) when None is passed.
+        last_nonlinearity (toch.nn.Module, optional) : Nonlinearity to be used in the final convolutional layer
+                                                      Defaults to sigmoid when None is passed.
     """
 
     def __init__(self, in_channels=3, step_channels=64, batchnorm=True,

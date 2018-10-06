@@ -7,24 +7,34 @@ __all__ = ['WassersteinGeneratorLoss', 'WassersteinDiscriminatorLoss', 'Wasserst
 
 
 class WassersteinGeneratorLoss(GeneratorLoss):
-    r"""Wasserstein GAN generator loss from :
-    "Wasserstein GAN
-    by Arjovsky et. al." <https://arxiv.org/abs/1701.07875>
+    r"""Wasserstein GAN generator loss from
+    `"Wasserstein GAN by Arjovsky et. al." <https://arxiv.org/abs/1701.07875>`_ paper
 
     The loss can be described as:
-        L(G) = -f(G(z))
 
-    G : Generator
-    f : Critic/Discriminator
-    z : A sample from the noise prior
+    .. math:: L(G) = -f(G(z))
 
-    Shape:
-        - fgz: (N, *) where * means any number of additional dimensions
-        - Output: scalar if reduction is applied otherwise (N, *),
-         same shape as input
+    where
 
+    - G : Generator
+    - f : Critic/Discriminator
+    - z : A sample from the noise prior
+
+    Args:
+        reduction (string, optional): Specifies the reduction to apply to the output.
+            If `none` no reduction will be applied. If `elementwise_mean` the sum of
+            the elements will be divided by the number of elements in the output. If
+            `sum` the output will be summed.
     """
     def forward(self, fgz):
+        r"""
+        Args:
+            dgz (torch.Tensor) : Output of the Generator. It must have the dimensions
+                                 (N, \*) where \* means any number of additional dimensions.
+
+        Returns:
+            scalar if reduction is applied else Tensor with dimensions (N, \*).
+        """
         if self.reduction == 'elementwise_mean':
             return torch.mean(fgz) * -1.0
         elif self.reduction == 'sum':
@@ -34,70 +44,81 @@ class WassersteinGeneratorLoss(GeneratorLoss):
 
 
 class WassersteinDiscriminatorLoss(DiscriminatorLoss):
-    r"""Wasserstein GAN generator loss from :
-    "Wasserstein GAN
-    by Arjovsky et. al." <https://arxiv.org/abs/1701.07875>
+    r"""Wasserstein GAN generator loss from
+    `"Wasserstein GAN by Arjovsky et. al." <https://arxiv.org/abs/1701.07875>`_ paper
 
     The loss can be described as:
-        L(D) = f(x) - f(G(z))
 
-    G : Generator
-    f : Critic/Discriminator
-    x : A sample from the data distribution
-    z : A sample from the noise prior
+    .. math:: L(D) = f(x) - f(G(z))
 
-    Shape:
-        - fx: (N, *) where * means any number of additional dimensions
-        - fgz: (N, *) where * means any number of additional dimensions
-        - Output: scalar if reduction is applied otherwise (N, *),
-         same shape as input
+    where
 
+    - G : Generator
+    - f : Critic/Discriminator
+    - x : A sample from the data distribution
+    - z : A sample from the noise prior
+
+    Args:
+        reduction (string, optional): Specifies the reduction to apply to the output.
+            If `none` no reduction will be applied. If `elementwise_mean` the sum of
+            the elements will be divided by the number of elements in the output. If
+            `sum` the output will be summed.
     """
     def forward(self, fx, fgz):
+        r"""
+        Args:
+            dx (torch.Tensor) : Output of the Discriminator. It must have the dimensions
+                                (N, \*) where \* means any number of additional dimensions.
+            dgz (torch.Tensor) : Output of the Generator. It must have the dimensions
+                                 (N, \*) where \* means any number of additional dimensions.
+
+        Returns:
+            scalar if reduction is applied else Tensor with dimensions (N, \*).
+        """
         return reduce(fgz - fx, self.reduction)
 
 
 class WassersteinGradientPenalty(DiscriminatorLoss):
-    r"""Gradient Penalty
-     for the Improved Wasserstein GAN discriminator from :
-    "Improved Training of Wasserstein GANs
-    by Gulrajani et. al." <https://arxiv.org/abs/1704.00028>
+    r"""Gradient Penalty for the Improved Wasserstein GAN discriminator from
+    `"Improved Training of Wasserstein GANs
+    by Gulrajani et. al." <https://arxiv.org/abs/1704.00028>`_ paper
 
     The gradient penalty is calculated as:
-        LAMBDA * (norm(grad(D(x))) - 1)**2
+
+    .. math: \lambda \times (norm(grad(D(x))) - 1)^2
+
     The gradient being taken with respect to x
 
-    G : Generator
-    D : Disrciminator/Critic
-    LAMBDA : Scaling hyperparameter (default 10.0)
-    x : Interpolation term for the gradient penalty
+    where
+
+    - G : Generator
+    - D : Disrciminator/Critic
+    - :math:`\lambda` : Scaling hyperparameter (default 10.0)
+    - x : Interpolation term for the gradient penalty
 
     Args:
-        reduction(string, optional): Specifies the reduction to apply
-        to the output: 'none' | 'elementwise_mean' | 'sum'.
-        'none' : no reduction will be applied,
-        'elementwise_mean' : the sum of the elements will be divided
-        by the number of elements in the output
-        'sum' : the output will be summed. Default 'elementwise_mean'
-        Default True
+        reduction (string, optional): Specifies the reduction to apply to the output.
+            If `none` no reduction will be applied. If `elementwise_mean` the sum of
+            the elements will be divided by the number of elements in the output. If
+            `sum` the output will be summed.
 
-        lambd(float,optional) : Hyperparameter lambda
-                                for scaling the gradient penalty
-
-    Shape:
-        - interpolate: (N, *) where * means any
-                       number of additional dimensions
-        - d_interpolate: (N, *) where * means any
-                        number of additional dimensions
-        - Output: scalar if reduction is applied otherwise (N, *),
-          same shape as input
-
+        lambd(float,optional) : Hyperparameter lambda for scaling the gradient penalty.
     """
     def __init__(self, reduction='elementwise_mean', lambd=10.0):
         super(WassersteinGradientPenalty, self).__init__(reduction)
         self.lambd = lambd
 
     def forward(self, interpolate, d_interpolate):
+        r"""
+        Args:
+            interpolate (torch.Tensor) : It must have the dimensions (N, \*) where
+                                         \* means any number of additional dimensions.
+            d_interpolate (torch.Tensor) : It must have the dimensions (N, \*) where
+                                           \* means any number of additional dimensions.
+
+        Returns:
+            scalar if reduction is applied else Tensor with dimensions (N, \*).
+        """
         # TODO(Aniket1998): Check for performance bottlenecks
         # If found, write the backprop yourself instead of
         # relying on autograd

@@ -8,35 +8,31 @@ __all__ = ['InfoGANGenerator', 'InfoGANDiscriminator']
 
 class InfoGANGenerator(DCGANGenerator):
     r"""Generator for InfoGAN based on the Deep Convolutional GAN (DCGAN) architecture, from
-    "InfoGAN : Interpretable Representation Learning With Information Maximizing Generative Aversarial Nets
-     by Chen et. al. " <https://arxiv.org/abs/1606.03657>
+    `"InfoGAN : Interpretable Representation Learning With Information Maximizing Generative Aversarial Nets
+    by Chen et. al. " <https://arxiv.org/abs/1606.03657>`_ paper
 
-     Args:
-        dim_dis (int) : Dimension of the discrete latent code sampled from the prior
-        dim_cont (int) : Dimension of the continuous latent code sampled from the prior
-        encoding_dims (int, optional) : Dimension of the encoding vector sampled from the noise prior. Default 100
-        out_channels (int, optional) : Number of channels in the output Tensor. Default 3
+    Args:
+        dim_dis (int) : Dimension of the discrete latent code sampled from the prior.
+        dim_cont (int) : Dimension of the continuous latent code sampled from the prior.
+        encoding_dims (int, optional) : Dimension of the encoding vector sampled from the noise prior.
+        out_channels (int, optional) : Number of channels in the output Tensor.
         step_channels (int, optional) : Number of channels in multiples of which the DCGAN steps up
                                         the convolutional features
                                         The step up is done as dim z -> d - > 2 * d -> 4 * d - > 8 * d
-                                        where d = step_channels. Default 64
-
-        batchnorm (bool, optional) : If True, use batch normalization in the convolutional layers of the generator
-                                     Default True
-
+                                        where d = step_channels.
+        batchnorm (bool, optional) : If True, use batch normalization in the convolutional layers of the generator.
         nonlinearity(torch.nn.Module, optional) : Nonlinearity to be used in the intermediate convolutional layers
-                                                  Defaults to LeakyReLU(0.2) when None is passed. Default None
-
+                                                  Defaults to LeakyReLU(0.2) when None is passed.
         last_nonlinearity(torch.nn.Module, optional) : Nonlinearity to be used in the final convolutional layer
-                                                       Defaults to tanh when None is passed. Default None
+                                                       Defaults to tanh when None is passed.
 
-    Usage:
-        x = G(z, c_cont, c_dis)
-
-        G: Generator
-        z : Sample from the noise prior
-        c_cont : Continuous latent code
-        c_dis : Discrete latent code
+    Example:
+        >>> import torchgan.models as models
+        >>> G = models.InfoGANGenerator(...)
+        >>> z = ...
+        >>> c_cont = ...
+        >>> c_dis = ...
+        >>> x = G(z, c_cont, c_dis)
     """
     def __init__(self, dim_dis, dim_cont, encoding_dims=100, out_channels=3,
                  step_channels=64, batchnorm=True, nonlinearity=None, last_nonlinearity=None):
@@ -53,36 +49,35 @@ class InfoGANGenerator(DCGANGenerator):
 
 class InfoGANDiscriminator(DCGANDiscriminator):
     r"""Discriminator for InfoGAN based on the Deep Convolutional GAN (DCGAN) architecture, from
-    "InfoGAN : Interpretable Representation Learning With Information Maximizing Generative Aversarial Nets
-     by Chen et. al. " <https://arxiv.org/abs/1606.03657>
+    `"InfoGAN : Interpretable Representation Learning With Information Maximizing Generative Aversarial Nets
+    by Chen et. al. " <https://arxiv.org/abs/1606.03657>`_ paper
 
     The approximate conditional probability distribution over the latent code Q(c|x) is chosen to be a factored
     Gaussian for the continuous latent code and a Categorical distribution for the discrete latent code
 
-     Args:
+    Args:
         dim_dis (int) : Dimension of the discrete latent code sampled from the prior
         dim_cont (int) : Dimension of the continuous latent code sampled from the prior
         encoding_dims (int, optional) : Dimension of the encoding vector sampled from the noise prior. Default 100
         out_channels (int, optional) : Number of channels in the output Tensor. Default 3
         step_channels (int, optional) : Number of channels in multiples of which the DCGAN steps up
                                         the convolutional features
-                                        The step up is done as dim z -> d - > 2 * d -> 4 * d - > 8 * d
+                                        The step up is done as dim `z -> d - > 2 * d -> 4 * d - > 8 * d`
                                         where d = step_channels. Default 64
 
         batchnorm (bool, optional) : If True, use batch normalization in the convolutional layers of the generator
                                      Default True
 
-        nonlinearity(torch.nn.Module, optional) : Nonlinearity to be used in the intermediate convolutional layers
+        nonlinearity (torch.nn.Module, optional) : Nonlinearity to be used in the intermediate convolutional layers
                                                   Defaults to LeakyReLU(0.2) when None is passed. Default None
 
-        last_nonlinearity(torch.nn.Module, optional) : Nonlinearity to be used in the final convolutional layer
+        last_nonlinearity (torch.nn.Module, optional) : Nonlinearity to be used in the final convolutional layer
                                                        Defaults to tanh when None is passed. Default None
-    Usage:
-        score, q_categorical, q_gaussian  = D(x)
-
-        x : Sample from the data distribution
-        q_categorical : A categorical distribution over the discrete latent code
-        q_gaussian : A factored Gaussian distribution over the continuous latent code
+    Example:
+        >>> import torchgan.models as models
+        >>> D = models.InfoGANDiscriminator(...)
+        >>> x = ...
+        >>> score, q_categorical, q_gaussian = D(x)
     """
     def __init__(self, dim_dis, dim_cont, in_channels=3, step_channels=64,
                  batchnorm=True, nonlinearity=None, last_nonlinearity=None, latent_nonlinearity=None):

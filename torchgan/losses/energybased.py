@@ -7,50 +7,77 @@ __all__ = ['EnergyBasedGeneratorLoss', 'EnergyBasedDiscriminatorLoss']
 
 
 class EnergyBasedGeneratorLoss(GeneratorLoss):
-    r"""Energy Based GAN generator loss from :
-    "Energy Based Generative Adversarial Network
-     by Zhao et. al." <https://arxiv.org/abs/1609.03126>
+    r"""Energy Based GAN generator loss from
+    `"Energy Based Generative Adversarial Network
+    by Zhao et. al." <https://arxiv.org/abs/1609.03126>`_ paper.
 
     The loss can be described as:
-        L(G) = D(G(z))
 
-    G : Generator
-    D : Discriminator
-    z : A sample from the noise prior
+    .. math:: L(G) = D(G(z))
 
-    Shape:
-        - dgz: (N, *) where * means any number of additional dimensions
-        - Output: scalar if reduction is applied otherwise (N, *),
-          same shape as input
+    where
 
+    - G : Generator
+    - D : Discriminator
+    - z : A sample from the noise prior
+
+    Args:
+        reduction (string, optional): Specifies the reduction to apply to the output.
+            If `none` no reduction will be applied. If `elementwise_mean` the sum of
+            the elements will be divided by the number of elements in the output. If
+            `sum` the output will be summed.
     """
+    def __init__(self, reduction='elementwise_mean'):
+        super(EnergyBasedGeneratorLoss, self).__init__(reduction)
+
     def forward(self, dgz):
+        r"""
+        Args:
+            dgz (torch.Tensor) : Output of the Generator. It must have the dimensions
+                                 (N, \*) where \* means any number of additional dimensions.
+
+        Returns:
+            scalar if reduction is applied else Tensor with dimensions (N, \*).
+        """
         return reduce(dgz, self.reduction)
 
 
 class EnergyBasedDiscriminatorLoss(DiscriminatorLoss):
-    r"""Energy Based GAN generator loss from :
-    "Energy Based Generative Adversarial Network
-     by Zhao et. al." <https://arxiv.org/abs/1609.03126>
+    r"""Energy Based GAN generator loss from
+    `"Energy Based Generative Adversarial Network
+    by Zhao et. al." <https://arxiv.org/abs/1609.03126>`_ paper
 
     The loss can be described as:
-        L(D) = D(x) + max(0,m - D(G(z)))
 
-    G : Generator
-    D : Discriminator
-    m : Margin Hyperparameter (default 80.0)
-    z : A sample from the noise prior
+    .. math:: L(D) = D(x) + max(0, m - D(G(z)))
 
-    Shape:
-        - dgz: (N, *) where * means any number of additional dimensions
-        - Output: scalar if reduction is applied otherwise (N, *),
-          same shape as input
+    where
 
+    - G : Generator
+    - D : Discriminator
+    - m : Margin Hyperparameter (default 80.0)
+    - z : A sample from the noise prior
+
+    Args:
+        reduction (string, optional): Specifies the reduction to apply to the output.
+            If `none` no reduction will be applied. If `elementwise_mean` the sum of
+            the elements will be divided by the number of elements in the output. If
+            `sum` the output will be summed.
     """
 
     def __init__(self, reduction='elementwise_mean', margin=80.0):
-        super(EnergyBasedGeneratorLoss, self).__init__(reduction)
+        super(EnergyBasedDiscriminatorLoss, self).__init__(reduction)
         self.margin = margin
 
     def forward(self, dx, dgz):
+        r"""
+        Args:
+            dx (torch.Tensor) : Output of the Discriminator. It must have the dimensions
+                                (N, \*) where \* means any number of additional dimensions.
+            dgz (torch.Tensor) : Output of the Generator. It must have the dimensions
+                                 (N, \*) where \* means any number of additional dimensions.
+
+        Returns:
+            scalar if reduction is applied else Tensor with dimensions (N, \*).
+        """
         return reduce(dx + F.relu(-dgz + self.margin), self.reduction)

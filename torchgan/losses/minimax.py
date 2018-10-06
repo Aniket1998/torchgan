@@ -7,44 +7,45 @@ __all__ = ['MinimaxGeneratorLoss', 'MinimaxDiscriminatorLoss']
 
 class MinimaxGeneratorLoss(GeneratorLoss):
     r"""Minimax game generator loss from the original GAN paper
-    "Generative Adversarial Networks
-    by Goodfellow et. al." <https://arxiv.org/abs/1406.2661>
+    `"Generative Adversarial Networks
+    by Goodfellow et. al." <https://arxiv.org/abs/1406.2661>`_
 
     The loss can be described as:
-        L(G) = log(1 - D(G(z)))
 
-    G : Generator
-    D : Discriminator
-    z : A sample from the noise prior
+    .. math:: L(G) = log(1 - D(G(z)))
+
+    where
+
+    - G : Generator
+    - D : Discriminator
+    - z : A sample from the noise prior
 
     The nonsaturating heuristic is also supported:
-        L(G) = -log(D(G(z)))
 
-   Args:
-        reduction(string, optional): Specifies the reduction to apply
-        to the output: 'none' | 'elementwise_mean' | 'sum'.
-         'none' : no reduction will be applied,
-        'elementwise_mean' : the sum of the elements will be divided
-        by the number of elements in the output
-        'sum' : the output will be summed. Default 'elementwise_mean'
-        Default True
+    .. math:: L(G) = -log(D(G(z)))
+
+    Args:
+        reduction (string, optional): Specifies the reduction to apply to the output.
+            If `none` no reduction will be applied. If `elementwise_mean` the sum of
+            the elements will be divided by the number of elements in the output. If
+            `sum` the output will be summed.
 
         nonsaturating(bool, optional): Specifies whether to use the
-         nonsaturating heuristic loss for the generator :
-        L(G) = -log(D(G(z))).
-        Default True
-
-    Shape:
-        - dgz: (N, *) where * means any number of additional dimensions
-        - Output: scalar if reduction is appliedotherwise (N, *),
-          same shape as input
-
+            nonsaturating heuristic loss for the generator
     """
     def __init__(self, reduction='elementwise_mean', nonsaturating=True):
         super(MinimaxGeneratorLoss, self).__init__(reduction)
         self.nonsaturating = nonsaturating
 
     def forward(self, dgz):
+        r"""
+        Args:
+            dgz (torch.Tensor) : Output of the Generator. It must have the dimensions
+                                 (N, \*) where \* means any number of additional dimensions.
+
+        Returns:
+            scalar if reduction is applied else Tensor with dimensions (N, \*).
+        """
         if self.nonsaturating:
             target = torch.ones_like(dgz)
             return F.binary_cross_entropy_with_logits(dgz, target,
@@ -57,40 +58,38 @@ class MinimaxGeneratorLoss(GeneratorLoss):
 
 class MinimaxDiscriminatorLoss(DiscriminatorLoss):
     r"""Minimax game discriminator loss from the original GAN paper
-    "Generative Adversarial Networks
-    by Goodfellow et. al." <https://arxiv.org/abs/1406.2661>
+    `"Generative Adversarial Networks
+    by Goodfellow et. al." <https://arxiv.org/abs/1406.2661>`_
 
     The loss can be described as:
-        L(G) = -[log(D(x)) + log(1 - D(G(z)))]
 
-    G : Generator
-    D : Discriminator
-    x : A sample from the data distribution
-    z : A sample from the noise prior
+    .. math:: L(G) = -[log(D(x)) + log(1 - D(G(z)))]
 
-   Args:
-        reduction(string, optional): Specifies the reduction to apply
-        to the output: 'none' | 'elementwise_mean' | 'sum'.
-         'none' : no reduction will be applied,
-        'elementwise_mean' : the sum of the elements will be divided
-        by the number of elements in the output
-        'sum' : the output will be summed. Default 'elementwise_mean'
-        Default True
+    where
 
-        nonsaturating(bool, optional): Specifies whether to use the
-         nonsaturating heuristic loss for the generator :
-        L(G) = -log(D(G(z))).
-        Default True
+    - G : Generator
+    - D : Discriminator
+    - x : A sample from the data distribution
+    - z : A sample from the noise prior
 
-    Shape:
-        - dx: (N, *) where * means any number of additional dimensions
-        - dgz: (N, *) where * means any number of additional dimensions
-        - Output: scalar if reduction is appliedotherwise (N, *),
-          same shape as input
-
+    Args:
+        reduction (string, optional): Specifies the reduction to apply to the output.
+            If `none` no reduction will be applied. If `elementwise_mean` the sum of
+            the elements will be divided by the number of elements in the output. If
+            `sum` the output will be summed.
     """
 
     def forward(self, dx, dgz):
+        r"""
+        Args:
+            dx (torch.Tensor) : Output of the Discriminator. It must have the dimensions
+                                (N, \*) where \* means any number of additional dimensions.
+            dgz (torch.Tensor) : Output of the Generator. It must have the dimensions
+                                 (N, \*) where \* means any number of additional dimensions.
+
+        Returns:
+            scalar if reduction is applied else Tensor with dimensions (N, \*).
+        """
         target_ones = torch.ones_like(dgz)
         target_zeros = torch.zeros_like(dx)
         loss = F.binary_cross_entropy_with_logits(dx, target_ones,
