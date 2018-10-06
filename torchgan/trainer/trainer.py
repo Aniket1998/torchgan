@@ -124,7 +124,7 @@ class Trainer(object):
             img = torchvision.utils.make_grid(images)
             torchvision.utils.save_image(img, save_path, nrow=self.nrow)
             if self.log_tensorboard:
-                self.writer.add_image("Generated Samples", img, self._get_step( 0))
+                self.writer.add_image("Generated Samples", img, self._get_step(0))
         self.generator.train()
 
     def _verbose_matching(self, verbose):
