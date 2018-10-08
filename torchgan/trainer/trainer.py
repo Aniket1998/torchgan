@@ -51,10 +51,6 @@ class Trainer(object):
             target_dim = 1
         else:
             target_dim = kwargs["target_dim"]
-        self.targets = {
-            'discriminator_target_real': torch.ones(self.batch_size, target_dim, device=self.device).squeeze(),
-            'discriminator_target_fake': torch.zeros(self.batch_size, target_dim, device=self.device).squeeze()
-        }
         self.start_epoch = 0
         self.last_retained_checkpoint = 0
         self.writer = SummaryWriter()
@@ -177,18 +173,13 @@ class Trainer(object):
     def discriminator_train_iter(self, images, labels, **kwargs):
         sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
         d_real = self.discriminator(images).squeeze()
-        d_loss_real = self.discriminator_loss(d_real, self.targets["discriminator_target_real"])
-        d_loss_real.backward()
-        self.discriminator.zero_grad()
-        self.generator.zero_grad()
         d_fake = self.discriminator(self.generator(sampled_noise).detach()).squeeze()
-        d_loss_fake = self.discriminator_loss(d_fake, self.targets["discriminator_target_fake"])
-        d_loss_fake.backward()
-        d_loss = d_loss_fake + d_loss_real
+        d_loss = self.discriminator_loss(d_real, d_fake)
+        d_loss.backward()
         self.loss_information['discriminator_losses'].append(d_loss.item())
         self.loss_information['discriminator_iters'] += 1
 
-    def train(self, data_loader, **kwargs):
+    def train(self, data_loader_function, **kwargs):
         self.generator.train()
         self.discriminator.train()
 
@@ -200,10 +191,10 @@ class Trainer(object):
         if "generator_options" in kwargs:
             generator_options = kwargs["generator_options"]
 
-        for epoch in range(self.start_epoch, self.epochs):
+        running_generator_loss = 0.0
+        running_discriminator_loss = 0.0
 
-            running_generator_loss = 0.0
-            running_discriminator_loss = 0.0
+        for epoch in range(self.start_epoch, self.epochs):
 
             for images, labels in data_loader:
 
@@ -213,19 +204,20 @@ class Trainer(object):
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
-                self.discriminator.zero_grad()
-                self.generator.zero_grad()
+                self.optimizer_discriminator.zero_grad()
+                self.optimizer_generator.zero_grad()
                 self.discriminator_train_iter(images, labels, **discriminator_options)
                 self.optimizer_discriminator.step()
                 running_discriminator_loss += self.loss_information['discriminator_losses'][-1]
 
-                self.generator.zero_grad()
+                self.optimizer_generator.zero_grad()
                 self.generator_train_iter(**generator_options)
                 self.optimizer_generator.step()
                 running_generator_loss += self.loss_information['generator_losses'][-1]
 
                 self.tensorboard_log(running_generator_loss / self.loss_information['generator_iters'],
                     running_discriminator_loss / self.loss_information['discriminator_iters'])
+
                 # NOTE(avik-pal): A small hack to support WGAN
                 if self.train_stopper():
                     break
@@ -240,8 +232,6 @@ class Trainer(object):
             self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
                               running_discriminator_loss / self.loss_information['discriminator_iters'],
                               epoch)
-            self.loss_information['generator_iters'] = 0
-            self.loss_information['discriminator_iters'] = 0
 
         print("Training of the Model is Complete")
 
