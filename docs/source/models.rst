@@ -37,6 +37,8 @@ DCGAN
 -----
 .. autoclass:: DCGANGenerator
 .. autoclass:: DCGANDiscriminator
+.. autoclass:: SmallDCGANGenerator
+.. autoclass:: SmallDCGANDiscriminator
 
 Conditional GAN
 ---------------
