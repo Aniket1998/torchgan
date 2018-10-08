@@ -24,10 +24,10 @@ class WGANGP_Trainer(Trainer):
     def discriminator_train_iter(self, images, labels, **kwargs):
         sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
         epsilon = torch.rand(1).item()
-        fake_images = self.generator(sampled_noise).detach()
+        fake_images = self.generator(sampled_noise)
         interpolate = epsilon * images + (1 - epsilon) * fake_images
 
-        critic_loss = self.discriminator_loss(images, fake_images)
+        critic_loss = self.discriminator_loss(images, fake_images.detach())
         gradient_penalty = self.discriminator_penalty(interpolate, self.discriminator(interpolate))
 
         d_loss = critic_loss + gradient_penalty
