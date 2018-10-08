@@ -47,10 +47,6 @@ class Trainer(object):
         }
         if "loss_information" in kwargs:
             self.loss_information.update(kwargs["loss_information"])
-        if "target_dim" not in kwargs:
-            target_dim = 1
-        else:
-            target_dim = kwargs["target_dim"]
         self.start_epoch = 0
         self.last_retained_checkpoint = 0
         self.writer = SummaryWriter()
@@ -160,8 +156,8 @@ class Trainer(object):
             self.writer.add_scalar("Generator Loss", running_generator_loss,
                                                     self._get_step())
             self.writer.add_scalars("Losses", {'Generator Loss': running_generator_loss,
-                                               'Discriminator Loss': running_discriminator_loss}
-                                    , self._get_step())
+                                               'Discriminator Loss': running_discriminator_loss},
+                                    self._get_step())
 
     def train_stopper(self):
         return False
