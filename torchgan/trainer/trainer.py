@@ -55,11 +55,16 @@ class Trainer(object):
             'discriminator_target_real': torch.ones(self.batch_size, target_dim, device=self.device).squeeze(),
             'discriminator_target_fake': torch.zeros(self.batch_size, target_dim, device=self.device).squeeze()
         }
-        self.total_batches_complete = 0
         self.start_epoch = 0
         self.last_retained_checkpoint = 0
         self.writer = SummaryWriter()
         self.log_tensorboard = log_tensorboard
+        if self.log_tensorboard:
+            self.tensorboard_information = {
+                "step": 0,
+                "repeat_step": 3,
+                "repeats": 1
+            }
         if "display_rows" not in kwargs:
             self.nrow = 8
         else:
@@ -111,9 +116,15 @@ class Trainer(object):
             self.generator_losses = []
             self.discriminator_losses = []
 
-    def _get_step(self, iters):
+    def _get_step(self, img=False):
         # FIXME(avik-pal): Not a proper step size. Immediately fix this
-        return self.total_batches_complete * self.batch_size + iters
+        if img or self.tensorboard_information["repeats"] < self.tensorboard_information["repeat_step"]:
+            self.tensorboard_information["repeats"] += 1
+            return self.tensorboard_information["step"]
+        else:
+            self.tensorboard_information["step"] += 1
+            self.tensorboard_information["repeats"] = 1
+            return self.tensorboard_information["step"]
 
     def sample_images(self, epoch):
         save_path = "{}/epoch{}.png".format(self.recon, epoch + 1)
@@ -124,7 +135,7 @@ class Trainer(object):
             img = torchvision.utils.make_grid(images)
             torchvision.utils.save_image(img, save_path, nrow=self.nrow)
             if self.log_tensorboard:
-                self.writer.add_image("Generated Samples", img, self._get_step(0))
+                self.writer.add_image("Generated Samples", img, self._get_step())
         self.generator.train()
 
     def _verbose_matching(self, verbose):
@@ -134,8 +145,7 @@ class Trainer(object):
         self.save_epoch = 6 - verbose
         self.generate_images = 6 - verbose
 
-    def train_logger(self, running_generator_loss, running_discriminator_loss, generator_iters, discriminator_iters,
-                                epoch, itr=None):
+    def train_logger(self, running_generator_loss, running_discriminator_loss, epoch, itr=None):
         if itr is None:
             if (epoch + 1) % self.save_epoch == 0 or epoch == self.epochs:
                 self.save_model(epoch)
@@ -147,13 +157,12 @@ class Trainer(object):
             print("Epoch {} | Iteration {} | Mean Generator Loss : {} | Mean Discriminator Loss : {}".format(
                   epoch + 1, itr + 1, running_generator_loss, running_discriminator_loss))
 
-    def tensorboard_log(self, running_generator_loss, running_discriminator_loss, generator_iters,
-                                         discriminator_iters):
+    def tensorboard_log(self, running_generator_loss, running_discriminator_loss):
         if self.log_tensorboard:
             self.writer.add_scalar("Discriminator Loss", running_discriminator_loss,
-                                                    self._get_step(discriminator_iters))
+                                                    self._get_step())
             self.writer.add_scalar("Generator Loss", running_generator_loss,
-                                                    self._get_step(generator_iters))
+                                                    self._get_step())
 
     def train_stopper(self):
         return False
@@ -169,10 +178,13 @@ class Trainer(object):
         sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
         d_real = self.discriminator(images).squeeze()
         d_loss_real = self.discriminator_loss(d_real, self.targets["discriminator_target_real"])
+        d_loss_real.backward()
+        self.discriminator.zero_grad()
+        self.generator.zero_grad()
         d_fake = self.discriminator(self.generator(sampled_noise).detach()).squeeze()
         d_loss_fake = self.discriminator_loss(d_fake, self.targets["discriminator_target_fake"])
+        d_loss_fake.backward()
         d_loss = d_loss_fake + d_loss_real
-        d_loss.backward()
         self.loss_information['discriminator_losses'].append(d_loss.item())
         self.loss_information['discriminator_iters'] += 1
 
@@ -197,7 +209,6 @@ class Trainer(object):
 
                 if not images.size()[0] == self.batch_size:
                     continue
-                self.total_batches_complete += 1
 
                 images = images.to(self.device)
                 labels = labels.to(self.device)
@@ -214,9 +225,7 @@ class Trainer(object):
                 running_generator_loss += self.loss_information['generator_losses'][-1]
 
                 self.tensorboard_log(running_generator_loss / self.loss_information['generator_iters'],
-                    running_discriminator_loss / self.loss_information['discriminator_iters'],
-                    self.loss_information['generator_iters'],
-                    self.loss_information['discriminator_iters'])
+                    running_discriminator_loss / self.loss_information['discriminator_iters'])
                 # NOTE(avik-pal): A small hack to support WGAN
                 if self.train_stopper():
                     break
@@ -226,14 +235,11 @@ class Trainer(object):
                     # FIXME(avik-pal): Sadly the iteration printed will be the discriminator iters
                     self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
                                       running_discriminator_loss / self.loss_information['discriminator_iters'],
-                                      self.loss_information['generator_iters'],
-                                      self.loss_information['discriminator_iters'], epoch,
-                                      self.loss_information['discriminator_iters'])
+                                      epoch, self.loss_information['discriminator_iters'])
 
             self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
                               running_discriminator_loss / self.loss_information['discriminator_iters'],
-                              self.loss_information['generator_iters'],
-                              self.loss_information['discriminator_iters'], epoch)
+                              epoch)
             self.loss_information['generator_iters'] = 0
             self.loss_information['discriminator_iters'] = 0
 
