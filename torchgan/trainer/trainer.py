@@ -58,7 +58,7 @@ class Trainer(object):
         if self.log_tensorboard:
             self.tensorboard_information = {
                 "step": 0,
-                "repeat_step": 3,
+                "repeat_step": 4,
                 "repeats": 1
             }
         if "display_rows" not in kwargs:
@@ -159,6 +159,9 @@ class Trainer(object):
                                                     self._get_step())
             self.writer.add_scalar("Generator Loss", running_generator_loss,
                                                     self._get_step())
+            self.writer.add_scalars("Losses", {'Generator Loss': running_generator_loss,
+                                               'Discriminator Loss': running_discriminator_loss}
+                                    , self._get_step())
 
     def train_stopper(self):
         return False
@@ -179,7 +182,7 @@ class Trainer(object):
         self.loss_information['discriminator_losses'].append(d_loss.item())
         self.loss_information['discriminator_iters'] += 1
 
-    def train(self, data_loader_function, **kwargs):
+    def train(self, data_loader, **kwargs):
         self.generator.train()
         self.discriminator.train()
 
