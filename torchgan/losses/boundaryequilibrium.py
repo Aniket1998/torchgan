@@ -30,12 +30,13 @@ class BoundaryEquilibriumLoss(GeneratorLoss, DiscriminatorLoss):
             the elements will be divided by the number of elements in the output. If
             `sum` the output will be summed.
     """
-    def __init__(self, reduction='elementwise_mean',
+    def __init__(self, reduction='elementwise_mean', override_train_ops=None,
                  init_k=0.0, lambd=0.001, gamma=0.5):
         super(BoundaryEquilibriumLoss, self).__init__(reduction)
         self.lambd = lambd
         self.k = init_k
         self.gamma = gamma
+        self.override_train_ops = override_train_ops
 
     def set_k(self, k=0.0):
         r"""Change the default value of k
@@ -60,3 +61,21 @@ class BoundaryEquilibriumLoss(GeneratorLoss, DiscriminatorLoss):
         lg = reduce(dgz, self.reduction)
         self.k += self.lambd * (self.gamma * ld - lg)
         return lg, ld
+
+    def train_ops(self, generator, discriminator, optimGen, optimDis, real_inputs, noise, labels=False):
+        if self.override_train_ops is not None:
+            return self.override_train_ops(self, generator, discriminator, optimGen,
+                                           optimDis, real_inputs, noise, labels)
+        else:
+            real = real_inputs if labels is False else real_inputs[0]
+            optimDis.zero_grad()
+            dx = discriminator(real)
+            fake = generator(noise)
+            dgz = discriminator(fake.detach())
+            loss_g, loss_d = self.forward(dx, dgz)
+            loss_d.backward()
+            optimDis.step()
+            optimGen.zero_grad()
+            loss_g.backward()
+            optimGen.step()
+            return loss_g.item(), loss_d.item()

@@ -2,7 +2,15 @@ import torch
 from .loss import GeneratorLoss, DiscriminatorLoss
 from ..utils import reduce
 
-__all__ = ['LeastSquaresGeneratorLoss', 'LeastSquaresDiscriminatorLoss']
+__all__ = ['least_squares_generator_loss', 'least_squares_discriminator_loss',
+           'LeastSquaresGeneratorLoss', 'LeastSquaresDiscriminatorLoss']
+
+def least_squares_generator_loss(dgz, c=1.0, reduction='elementwise_mean'):
+    return 0.5 * reduce((dgz - c) ** 2, reduction)
+
+
+def least_squares_discriminator_loss(dx, dgz, a=0.0, b=1.0, reduction='elementwise_mean'):
+    return 0.5 * (reduce((dx - b) ** 2, reduction) + reduce((dgz - a) ** 2, reduction))
 
 
 class LeastSquaresGeneratorLoss(GeneratorLoss):
@@ -40,7 +48,7 @@ class LeastSquaresGeneratorLoss(GeneratorLoss):
         Returns:
             scalar if reduction is applied else Tensor with dimensions (N, \*).
         """
-        return 0.5 * reduce((dgz - self.c) ** 2, self.reduction)
+        return least_squares_generator_loss(dgz, self.c, self.reduction)
 
 
 class LeastSquaresDiscriminatorLoss(DiscriminatorLoss):
@@ -81,5 +89,4 @@ class LeastSquaresDiscriminatorLoss(DiscriminatorLoss):
         Returns:
             scalar if reduction is applied else Tensor with dimensions (N, \*).
         """
-        return 0.5 * (reduce((dx - self.b) ** 2, self.reduction) +
-                      reduce((dgz - self.a) ** 2, self.reduction))
+        return least_squares_discriminator_loss(dx, dgz, self.a, self.b, self.reduction)

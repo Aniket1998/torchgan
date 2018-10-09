@@ -122,7 +122,7 @@ class TestModels(unittest.TestCase):
             x = torch.randn(10, channels[i], 64, 64)
             D = InfoGANDiscriminator(dim_dis[i], dim_cont[i], channels[i], step[i],
                                      batchnorm[i], nonlinearities[i], last_nonlinearity[i])
-            y, dist_dis, dist_cont = D(x)
+            y, dist_dis, dist_cont = D(x, True)
             assert y.shape == (10, 1, 1, 1)
             assert isinstance(dist_dis, distributions.OneHotCategorical)
             assert isinstance(dist_cont, distributions.Normal)
