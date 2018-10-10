@@ -2,7 +2,26 @@ import torch
 import torch.nn.functional as F
 from .loss import GeneratorLoss, DiscriminatorLoss
 
-__all__ = ['MinimaxGeneratorLoss', 'MinimaxDiscriminatorLoss']
+__all__ = ['minimax_generator_loss', 'minimax_discriminator_loss', 'MinimaxGeneratorLoss', 'MinimaxDiscriminatorLoss']
+
+def minimax_generator_loss(dgz, nonsaturating=True, reduction='elementwise_mean'):
+    if nonsaturating:
+        target = torch.ones_like(dgz)
+        return F.binary_cross_entropy_with_logits(dgz, target,
+                                                  reduction=reduction)
+    else:
+        target = torch.zeros_like(dgz)
+        return -1.0 * F.binary_cross_entropy_with_logits(dgz, target,
+                                                         reduction=reduction)
+
+def minimax_discriminator_loss(dx, dgz, reduction='elementwise_mean'):
+    target_ones = torch.ones_like(dgz)
+    target_zeros = torch.zeros_like(dx)
+    loss = F.binary_cross_entropy_with_logits(dx, target_ones,
+                                              reduction=reduction)
+    loss += F.binary_cross_entropy_with_logits(dgz, target_zeros,
+                                               reduction=reduction)
+    return loss
 
 
 class MinimaxGeneratorLoss(GeneratorLoss):
@@ -46,14 +65,7 @@ class MinimaxGeneratorLoss(GeneratorLoss):
         Returns:
             scalar if reduction is applied else Tensor with dimensions (N, \*).
         """
-        if self.nonsaturating:
-            target = torch.ones_like(dgz)
-            return F.binary_cross_entropy_with_logits(dgz, target,
-                                                      reduction=self.reduction)
-        else:
-            target = torch.zeros_like(dgz)
-            return -1.0 * F.binary_cross_entropy_with_logits(dgz, target,
-                                                             reduction=self.reduction)
+        return minimax_generator_loss(dgz, self.nonsaturating, self.reduction)
 
 
 class MinimaxDiscriminatorLoss(DiscriminatorLoss):
@@ -90,10 +102,4 @@ class MinimaxDiscriminatorLoss(DiscriminatorLoss):
         Returns:
             scalar if reduction is applied else Tensor with dimensions (N, \*).
         """
-        target_ones = torch.ones_like(dgz)
-        target_zeros = torch.zeros_like(dx)
-        loss = F.binary_cross_entropy_with_logits(dx, target_ones,
-                                                  reduction=self.reduction)
-        loss += F.binary_cross_entropy_with_logits(dgz, target_zeros,
-                                                   reduction=self.reduction)
-        return loss
+        return minimax_discriminator_loss(dx, dgz, reduction=self.reduction)

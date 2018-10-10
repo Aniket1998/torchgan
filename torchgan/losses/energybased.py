@@ -3,8 +3,14 @@ import torch.nn.functional as F
 from .loss import GeneratorLoss, DiscriminatorLoss
 from ..utils import reduce
 
-__all__ = ['EnergyBasedGeneratorLoss', 'EnergyBasedDiscriminatorLoss']
+__all__ = ['energy_based_generator_loss', 'energy_based_discriminator_loss',
+           'EnergyBasedGeneratorLoss', 'EnergyBasedDiscriminatorLoss']
 
+def energy_based_generator_loss(dgz, reduction):
+    return reduce(dgz, reduction)
+
+def energy_based_discriminator_loss(dx, dgz, margin, reduction='elementwise_mean'):
+    return reduce(dx + F.relu(-dgz + margin), reduction)
 
 class EnergyBasedGeneratorLoss(GeneratorLoss):
     r"""Energy Based GAN generator loss from
@@ -39,7 +45,7 @@ class EnergyBasedGeneratorLoss(GeneratorLoss):
         Returns:
             scalar if reduction is applied else Tensor with dimensions (N, \*).
         """
-        return reduce(dgz, self.reduction)
+        return energy_based_generator_loss(dgz, self.reduction)
 
 
 class EnergyBasedDiscriminatorLoss(DiscriminatorLoss):

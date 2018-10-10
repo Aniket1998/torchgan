@@ -3,7 +3,24 @@ import torch.autograd as autograd
 from .loss import GeneratorLoss, DiscriminatorLoss
 from ..utils import reduce
 
-__all__ = ['WassersteinGeneratorLoss', 'WassersteinDiscriminatorLoss', 'WassersteinGradientPenalty']
+__all__ = ['wasserstein_generator_loss', 'wasserstein_discriminator_loss', 'wasserstein_gradient_penalty',
+           'WassersteinGeneratorLoss', 'WassersteinDiscriminatorLoss', 'WassersteinGradientPenalty']
+
+def wasserstein_generator_loss(fgz, reduction='elementwise_mean'):
+    return reduce(-1.0 * fgz, reduction)
+
+def wasserstein_discriminator_loss(fx, fgz, reduction='elementwise_mean'):
+    return reduce(fgz - fx, reduction)
+
+def wasserstein_gradient_penalty(interpolate, d_interpolate, reduction='elementwise_mean'):
+    grad_outputs = torch.ones_like(d_interpolate)
+    gradients = autograd.grad(outputs=d_interpolate, inputs=interpolate,
+                              grad_outputs=grad_outputs,
+                              create_graph=True, retain_graph=True,
+                              only_inputs=True)[0]
+
+    gradient_penalty = (gradients.norm(2) - 1) ** 2
+    return reduce(gradient_penalty, reduction)
 
 
 class WassersteinGeneratorLoss(GeneratorLoss):
@@ -35,12 +52,7 @@ class WassersteinGeneratorLoss(GeneratorLoss):
         Returns:
             scalar if reduction is applied else Tensor with dimensions (N, \*).
         """
-        if self.reduction == 'elementwise_mean':
-            return torch.mean(fgz) * -1.0
-        elif self.reduction == 'sum':
-            return torch.sum(fgz) * -1.0
-        else:
-            return fgz * -1.0
+        return wasserstein_generator_loss(fgz, self.reduction)
 
 
 class WassersteinDiscriminatorLoss(DiscriminatorLoss):
@@ -49,7 +61,7 @@ class WassersteinDiscriminatorLoss(DiscriminatorLoss):
 
     The loss can be described as:
 
-    .. math:: L(D) = f(x) - f(G(z))
+    .. math:: L(D) = f(G(z)) - f(x)
 
     where
 
@@ -75,7 +87,7 @@ class WassersteinDiscriminatorLoss(DiscriminatorLoss):
         Returns:
             scalar if reduction is applied else Tensor with dimensions (N, \*).
         """
-        return reduce(fgz - fx, self.reduction)
+        return wasserstein_discriminator_loss(fx, fgz, self.reduction)
 
 
 class WassersteinGradientPenalty(DiscriminatorLoss):
@@ -104,9 +116,10 @@ class WassersteinGradientPenalty(DiscriminatorLoss):
 
         lambd(float,optional) : Hyperparameter lambda for scaling the gradient penalty.
     """
-    def __init__(self, reduction='elementwise_mean', lambd=10.0):
+    def __init__(self, reduction='elementwise_mean', lambd=10.0, override_train_ops=None):
         super(WassersteinGradientPenalty, self).__init__(reduction)
         self.lambd = lambd
+        self.override_train_ops = override_train_ops
 
     def forward(self, interpolate, d_interpolate):
         r"""
@@ -122,11 +135,20 @@ class WassersteinGradientPenalty(DiscriminatorLoss):
         # TODO(Aniket1998): Check for performance bottlenecks
         # If found, write the backprop yourself instead of
         # relying on autograd
-        grad_outputs = torch.ones_like(d_interpolate)
-        gradients = autograd.grad(outputs=d_interpolate, inputs=interpolate,
-                                  grad_outputs=grad_outputs,
-                                  create_graph=True, retain_graph=True,
-                                  only_inputs=True)[0]
+        return wasserstein_gradient_penalty(interpolate, d_interpolate, self.reduction)
 
-        gradient_penalty = (gradients.norm(2) - 1) ** 2
-        return reduce(self.lambd * gradient_penalty, self.reduction)
+    def train_ops(self, generator, discriminator, optimDis, real_inputs, noise, labels=False):
+        if self.override_train_ops is not None:
+            return self.override_train_ops(self, generator, discriminator, optimDis, real_inputs, noise, labels)
+        else:
+            real = real_inputs if labels is False else real_inputs[0]
+            optimDis.zero_grad()
+            fake = generator(noise)
+            eps = torch.rand(1).item()
+            interpolate = eps * real + (1 - eps) * fake
+            d_interpolate = discriminator(interpolate)
+            loss = self.forward(interpolate, d_interpolate)
+            weighted_loss = self.lambd * loss
+            weighted_loss.backward()
+            optimDis.step()
+            return loss.item()

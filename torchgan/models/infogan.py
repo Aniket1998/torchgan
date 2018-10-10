@@ -42,8 +42,9 @@ class InfoGANGenerator(DCGANGenerator):
         self.dim_cont = dim_cont
         self.dim_dis = dim_dis
 
-    def forward(self, z, c_cont, c_dis):
-        z_cat = torch.cat([z, c_cont, c_dis], dim=1)
+    def forward(self, z, c_dis=None, c_cont=None):
+        z_cat = torch.cat([z, c_dis, c_cont],
+                          dim=1) if c_dis is not None and c_cont is not None else z
         return super(InfoGANGenerator, self).forward(z_cat)
 
 
@@ -104,10 +105,10 @@ class InfoGANDiscriminator(DCGANDiscriminator):
 
         del self.model[len(self.model) - 2:len(self.model)]
 
-    def forward(self, x):
+    def forward(self, x, return_latents=False):
         x = self.model(x)
         critic_score = self.critic(x)
         x = self.dist_conv(x).view(-1, x.size(1))
         dist_dis = distributions.OneHotCategorical(logits=self.dis_categorical(x))
         dist_cont = distributions.Normal(loc=self.cont_mean(x), scale=torch.exp(0.5 * self.cont_logvar(x)))
-        return critic_score, dist_dis, dist_cont
+        return critic_score, dist_dis, dist_cont if return_latents is True else critic_score
