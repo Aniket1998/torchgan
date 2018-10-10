@@ -137,12 +137,13 @@ class WassersteinGradientPenalty(DiscriminatorLoss):
         # relying on autograd
         return wasserstein_gradient_penalty(interpolate, d_interpolate, self.reduction)
 
-    def train_ops(self, generator, discriminator, optimDis, real_inputs, noise, labels=False):
+    def train_ops(self, generator, discriminator, optimizer_discriminator, real_inputs, noise, labels_provided=False):
         if self.override_train_ops is not None:
-            return self.override_train_ops(self, generator, discriminator, optimDis, real_inputs, noise, labels)
+            return self.override_train_ops(self, generator, discriminator, optimizer_discriminator, real_inputs, noise,
+                                           labels_provided)
         else:
-            real = real_inputs if labels is False else real_inputs[0]
-            optimDis.zero_grad()
+            real = real_inputs if labels_provided is False else real_inputs[0]
+            optimizer_discriminator.zero_grad()
             fake = generator(noise)
             eps = torch.rand(1).item()
             interpolate = eps * real + (1 - eps) * fake
@@ -150,5 +151,5 @@ class WassersteinGradientPenalty(DiscriminatorLoss):
             loss = self.forward(interpolate, d_interpolate)
             weighted_loss = self.lambd * loss
             weighted_loss.backward()
-            optimDis.step()
+            optimizer_discriminator.step()
             return loss.item()

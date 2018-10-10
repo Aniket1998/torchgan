@@ -52,16 +52,17 @@ class MutualInformationPenalty(GeneratorLoss, DiscriminatorLoss):
                                  zip((dist_dis, dist_cont), (c_dis, c_cont))])
         return reduce(-1.0 * log_probs, self.reduction)
 
-    def train_ops(self, generator, discriminator, optimGen, optimDis, dis_code, cont_code, noise):
+    def train_ops(self, generator, discriminator, optimizer_generator, optimizer_discriminator, dis_code, cont_code, noise):
         if self.override_train_ops is not None:
-            self.override_train_ops(self, generator, discriminator, optimGen, optimDis, dis_code, cont_code, noise)
+            self.override_train_ops(self, generator, discriminator, optimizer_generator, optimizer_discriminator, dis_code, cont_code, noise)
         else:
-            optimDis.zero_grad()
-            optimGen.zero_grad()
+            optimizer_discriminator.zero_grad()
+            optimizer_generator.zero_grad()
             fake = generator(noise, dis_code, cont_code)
             _, dist_dis, dist_cont = discriminator(fake, True)
             loss = self.forward(dis_code, cont_code, dist_dis, dist_cont)
             weighted_loss = self.lambd * loss
             weighted_loss.backward()
-            optimDis.step()
-            optimGen.step()
+            optimizer_discriminator.step()
+            optimizer_generator.step()
+            return weighted_loss.item()

@@ -62,20 +62,20 @@ class BoundaryEquilibriumLoss(GeneratorLoss, DiscriminatorLoss):
         self.k += self.lambd * (self.gamma * ld - lg)
         return lg, ld
 
-    def train_ops(self, generator, discriminator, optimGen, optimDis, real_inputs, noise, labels=False):
+    def train_ops(self, generator, discriminator, optimizer_generator, optimizer_discriminator, real_inputs, noise, labels_provided=False):
         if self.override_train_ops is not None:
-            return self.override_train_ops(self, generator, discriminator, optimGen,
-                                           optimDis, real_inputs, noise, labels)
+            return self.override_train_ops(self, generator, discriminator, optimizer_generator,
+                                           optimizer_discriminator, real_inputs, noise, labels_provided)
         else:
-            real = real_inputs if labels is False else real_inputs[0]
-            optimDis.zero_grad()
+            real = real_inputs if labels_provided is False else real_inputs[0]
+            optimizer_discriminator.zero_grad()
             dx = discriminator(real)
             fake = generator(noise)
             dgz = discriminator(fake.detach())
             loss_g, loss_d = self.forward(dx, dgz)
             loss_d.backward()
-            optimDis.step()
-            optimGen.zero_grad()
+            optimizer_discriminator.step()
+            optimizer_generator.zero_grad()
             loss_g.backward()
-            optimGen.step()
+            optimizer_generator.step()
             return loss_g.item(), loss_d.item()

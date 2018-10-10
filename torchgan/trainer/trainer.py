@@ -1,15 +1,18 @@
 import torch
 import torchvision
 from warnings import warn
+from inspect import signature
+from operator import itemgetter
 from tensorboardX import SummaryWriter
+from ..losses.loss import GeneratorLoss, DiscriminatorLoss
 
 __all__ = ['Trainer']
 
 class Trainer(object):
     def __init__(self, generator, discriminator, optimizer_generator, optimizer_discriminator,
-                 generator_loss, discriminator_loss, device=torch.device("cuda:0"),
-                 batch_size=128, sample_size=8, epochs=5, checkpoints="./model/gan",
-                 retain_checkpoints=5, recon="./images", test_noise=None, log_tensorboard=True, **kwargs):
+                 losses_list, device=torch.device("cuda:0"), ndiscriminator=-1, batch_size=128,
+                 sample_size=8, epochs=5, checkpoints="./model/gan", retain_checkpoints=5,
+                 recon="./images", test_noise=None, log_tensorboard=True, **kwargs):
         self.device = device
         self.generator = generator.to(self.device)
         self.discriminator = discriminator.to(self.device)
@@ -23,14 +26,7 @@ class Trainer(object):
                                                                    **kwargs["optimizer_discriminator_options"])
         else:
             self.optimizer_discriminator = optimizer_discriminator(self.discriminator.parameters())
-        if "loss_generator_options" in kwargs:
-            self.generator_loss = generator_loss(**kwargs["loss_generator_options"])
-        else:
-            self.generator_loss = generator_loss()
-        if "loss_discriminator_options" in kwargs:
-            self.discriminator_loss = discriminator_loss(**kwargs["loss_discriminator_options"])
-        else:
-            self.discriminator_loss = discriminator_loss()
+        self.losses_list = losses_list
         self.batch_size = batch_size
         self.sample_size = sample_size
         self.epochs = epochs
@@ -39,12 +35,18 @@ class Trainer(object):
         self.recon = recon
         self.test_noise = torch.randn(self.sample_size, self.generator.encoding_dims, 1, 1,
                                       device=self.device) if test_noise is None else test_noise
+        # Not needed but we need to store this to avoid errors. Also makes life simpler
+        self.noise = torch.randn(1)
+        self.real_inputs = torch.randn(1)
+        self.labels = torch.randn(1)
+
         self.loss_information = {
             'generator_losses': [],
             'discriminator_losses': [],
             'generator_iters': 0,
             'discriminator_iters': 0,
         }
+        self.ndiscriminator = ndiscriminator
         if "loss_information" in kwargs:
             self.loss_information.update(kwargs["loss_information"])
         self.start_epoch = 0
@@ -57,10 +59,9 @@ class Trainer(object):
                 "repeat_step": 4,
                 "repeats": 1
             }
-        if "display_rows" not in kwargs:
-            self.nrow = 8
-        else:
-            self.nrow = kwargs["display_rows"]
+        self.nrow = kwargs["display_rows"] if "display_rows" in kwargs else 8
+        self.labels_provided = kwargs["labels_provided"] if "labels_provided" in kwargs\
+                                        else False
 
     def save_model_extras(self, save_path):
         return {}
@@ -159,24 +160,49 @@ class Trainer(object):
                                                'Discriminator Loss': running_discriminator_loss},
                                     self._get_step())
 
+    def _get_argument_maps(self, loss):
+        sig = signature(loss.train_ops)
+        args = list(sig.parameters.keys())
+        for arg in args:
+            if arg not in self.__dict__:
+                raise Exception("Argument : %s needed for Loss not present".format(arg))
+        return args
+
+    def _store_loss_maps(self):
+        self.loss_arg_maps = []
+        for loss in self.losses_list:
+            self.loss_arg_maps.append(self._get_argument_maps(loss))
+
     def train_stopper(self):
-        return False
+        if self.ndiscriminator == -1:
+            return False
+        else:
+            return self.loss_information["discriminator_iters"] % self.ndiscriminator != 0
 
-    def generator_train_iter(self, **kwargs):
-        sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
-        g_loss = self.generator_loss(self.discriminator(self.generator(sampled_noise)))
-        g_loss.backward()
-        self.loss_information['generator_losses'].append(g_loss.item())
-        self.loss_information['generator_iters'] += 1
-
-    def discriminator_train_iter(self, images, labels, **kwargs):
-        sampled_noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1, device=self.device)
-        d_real = self.discriminator(images).squeeze()
-        d_fake = self.discriminator(self.generator(sampled_noise).detach()).squeeze()
-        d_loss = self.discriminator_loss(d_real, d_fake)
-        d_loss.backward()
-        self.loss_information['discriminator_losses'].append(d_loss.item())
-        self.loss_information['discriminator_iters'] += 1
+    def train_iter(self):
+        ldis = 0.0
+        lgen = 0.0
+        gen_iter = 0
+        dis_iter = 0
+        for i, loss in enumerate(self.losses_list):
+            if isinstance(loss, GeneratorLoss) and isinstance(loss, DiscriminatorLoss):
+                l = loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
+                if type(l) is tuple:
+                    ldis += l[1]
+                    lgen += l[0]
+                    gen_iter, dis_iter = 1, 1
+                else:
+                    ldis += l
+                    dis_iter = 1
+            elif isinstance(loss, GeneratorLoss):
+                if self.ndiscriminator == -1 or\
+                   self.loss_information["discriminator_iters"] % self.ncritic == 0:
+                   lgen += loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
+                   gen_iter = 1
+            elif isinstance(loss, DiscriminatorLoss):
+                ldis += loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
+                dis_iter = 1
+        return ldis, lgen, dis_iter, gen_iter
 
     def train(self, data_loader, **kwargs):
         self.generator.train()
@@ -200,30 +226,27 @@ class Trainer(object):
                 if not images.size()[0] == self.batch_size:
                     continue
 
-                images = images.to(self.device)
-                labels = labels.to(self.device)
+                self.real_inputs = images.to(self.device)
+                self.labels = labels.to(self.device)
+                self.noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1,
+                                         device=self.device)
 
-                self.optimizer_discriminator.zero_grad()
-                self.optimizer_generator.zero_grad()
-                self.discriminator_train_iter(images, labels, **discriminator_options)
-                self.optimizer_discriminator.step()
+                ldis, lgen, dis_iter, gen_iter = self.train_iter()
+                self.loss_information['generator_losses'].append(lgen)
+                self.loss_information['discriminator_losses'].append(ldis)
+                self.loss_information['generator_iters'] += gen_iter
+                self.loss_information['discriminator_iters'] += dis_iter
                 running_discriminator_loss += self.loss_information['discriminator_losses'][-1]
-
-                self.optimizer_generator.zero_grad()
-                self.generator_train_iter(**generator_options)
-                self.optimizer_generator.step()
                 running_generator_loss += self.loss_information['generator_losses'][-1]
 
                 self.tensorboard_log(running_generator_loss / self.loss_information['generator_iters'],
                     running_discriminator_loss / self.loss_information['discriminator_iters'])
 
-                # NOTE(avik-pal): A small hack to support WGAN
                 if self.train_stopper():
                     break
 
                 if self.loss_information['discriminator_iters'] % self.niter_print_losses == 0 \
                    and not self.loss_information['discriminator_iters'] == 0:
-                    # FIXME(avik-pal): Sadly the iteration printed will be the discriminator iters
                     self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
                                       running_discriminator_loss / self.loss_information['discriminator_iters'],
                                       epoch, self.loss_information['discriminator_iters'])
@@ -236,5 +259,6 @@ class Trainer(object):
 
     def __call__(self, data_loader, verbose=1, **kwargs):
         self._verbose_matching(verbose)
+        self._store_loss_maps()
         self.train(data_loader, **kwargs)
         self.writer.close()
