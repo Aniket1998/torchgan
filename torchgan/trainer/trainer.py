@@ -186,19 +186,19 @@ class Trainer(object):
         dis_iter = 0
         for i, loss in enumerate(self.losses_list):
             if isinstance(loss, GeneratorLoss) and isinstance(loss, DiscriminatorLoss):
-                l = loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
-                if type(l) is tuple:
-                    ldis += l[1]
-                    lgen += l[0]
+                cur_loss = loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
+                if type(cur_loss) is tuple:
+                    ldis += cur_loss[1]
+                    lgen += cur_loss[0]
                     gen_iter, dis_iter = 1, 1
                 else:
-                    ldis += l
+                    ldis += cur_loss
                     dis_iter = 1
             elif isinstance(loss, GeneratorLoss):
                 if self.ndiscriminator == -1 or\
                    self.loss_information["discriminator_iters"] % self.ncritic == 0:
-                   lgen += loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
-                   gen_iter = 1
+                    lgen += loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
+                    gen_iter = 1
             elif isinstance(loss, DiscriminatorLoss):
                 ldis += loss.train_ops(*itemgetter(*self.loss_arg_maps[i])(self.__dict__))
                 dis_iter = 1
@@ -207,14 +207,6 @@ class Trainer(object):
     def train(self, data_loader, **kwargs):
         self.generator.train()
         self.discriminator.train()
-
-        generator_options = {}
-        discriminator_options = {}
-
-        if "discriminator_options" in kwargs:
-            discriminator_options = kwargs["discriminator_options"]
-        if "generator_options" in kwargs:
-            generator_options = kwargs["generator_options"]
 
         running_generator_loss = 0.0
         running_discriminator_loss = 0.0

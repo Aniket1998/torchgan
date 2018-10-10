@@ -59,4 +59,4 @@ class DiscriminatorLoss(nn.Module):
             loss = self.forward(dx, dgz)
             loss.backward()
             optimizer_discriminator.step()
-            return loss.item()]
+            return loss.item()
