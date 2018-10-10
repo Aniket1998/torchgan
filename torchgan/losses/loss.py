@@ -28,9 +28,6 @@ class GeneratorLoss(nn.Module):
             optimizer_generator.step()
             return loss.item()
 
-    def __call__(self, **kwargs):
-        return self.train_ops(**kwargs)
-
 class DiscriminatorLoss(nn.Module):
     r"""Base class for all discriminator losses
 
