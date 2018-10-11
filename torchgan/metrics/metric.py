@@ -23,3 +23,11 @@ class EvaluationMetric(object):
 
     def __call__(self, x):
         return self.calculate_score(self.preprocess(x))
+
+    def metric_ops(self, generator, discriminator, **kwargs):
+        r"""
+        Subclasses must override this function and provide their own metric evaluation ops.
+
+        :raises NotImplementedError: If the subclass doesn't override this function.
+        """
+        raise NotImplementedError

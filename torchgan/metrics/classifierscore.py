@@ -49,3 +49,6 @@ class ClassifierScore(EvaluationMetric):
         q = torch.mean(p, dim=0)
         kl = torch.sum(p * (F.log_softmax(x, dim=1) - torch.log(q)), dim=1)
         return torch.exp(reduce(kl, 'elementwise_mean'))
+
+    def metric_ops(self, generator, discriminator, **kwargs):
+        return self.__call__(kwargs['ClassifierScore_inputs'])
