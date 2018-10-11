@@ -179,12 +179,12 @@ class Trainer(object):
                                     "Running Generator Loss": running_generator_loss},
                                    self._get_step())
             if metrics:
-                for name, metric in self.metric_logs:
+                for name, metric in self.metric_logs.items():
                     # FIXME(avik-pal): Metrics step should be different
                     self.writer.add_scalar("Metrics/{}".format(name),
                                            metric, self._get_step(False))
             else:
-                for name, loss in self.loss_logs:
+                for name, loss in self.loss_logs.items():
                     if type(loss) is tuple:
                         self.writer.add_scalar("Losses/{}".format(name),
                                                loss, self._get_step(False))
@@ -245,7 +245,7 @@ class Trainer(object):
     def eval_ops(self, epoch, **kwargs):
         self.sample_images(epoch)
         if self.metrics is not None:
-            for name, metric in self.metrics:
+            for name, metric in self.metrics.items():
                 if name + '_inputs' not in kwargs:
                     raise Exception("Inputs not provided for metric {}".format(name))
                 else:
@@ -258,9 +258,6 @@ class Trainer(object):
     def train(self, data_loader, **kwargs):
         self.generator.train()
         self.discriminator.train()
-
-        running_generator_loss = 0.0
-        running_discriminator_loss = 0.0
 
         for epoch in range(self.start_epoch, self.epochs):
             self.generator.train()
@@ -277,8 +274,8 @@ class Trainer(object):
                                          device=self.device)
 
                 lgen, ldis, gen_iter, dis_iter = self.train_iter()
-                self.loss_information['generator_losses'].append(lgen)
-                self.loss_information['discriminator_losses'].append(ldis)
+                self.loss_information['generator_losses'] += lgen
+                self.loss_information['discriminator_losses'] += ldis
                 self.loss_information['generator_iters'] += gen_iter
                 self.loss_information['discriminator_iters'] += dis_iter
 
@@ -288,12 +285,11 @@ class Trainer(object):
                 if self.train_stopper():
                     break
 
-            self.sample_images(epoch)
             self.save_model(epoch)
             self.train_logger(epoch,
-                              {'Generator Loss': running_generator_loss /\
+                              {'Generator Loss': self.loss_information['generator_losses'] /\
                               self.loss_information['generator_iters'],
-                              'Discriminator Loss': running_discriminator_loss /\
+                              'Discriminator Loss': self.loss_information['discriminator_losses'] /\
                               self.loss_information['discriminator_iters']})
             self.generator.eval()
             self.discriminator.eval()
