@@ -165,9 +165,9 @@ class Trainer(object):
     def tensorboard_log(self, metrics=False):
         if self.log_tensorboard:
             running_generator_loss = self.loss_information["generator_losses"] /\
-                                     self.loss_information["generator_iters"]
+                self.loss_information["generator_iters"]
             running_discriminator_loss = self.loss_information["discriminator_losses"] /\
-                                         self.loss_information["discriminator_iters"]
+                self.loss_information["discriminator_iters"]
             self.writer.add_scalar("Running Discriminator Loss",
                                    running_discriminator_loss,
                                    self._get_step())
@@ -188,7 +188,6 @@ class Trainer(object):
                     if type(loss) is tuple:
                         self.writer.add_scalar("Losses/{}".format(name),
                                                loss, self._get_step(False))
-
 
     def _get_argument_maps(self, loss):
         sig = signature(loss.train_ops)
@@ -221,8 +220,8 @@ class Trainer(object):
                 cur_loss = loss.train_ops(*itemgetter(*self.loss_arg_maps[name])(self.__dict__))
                 self.loss_logs[name].append(cur_loss)
                 if type(cur_loss) is tuple:
-                    lgen, ldis, gen_iter, dis_iter  = lgen + cur_loss[0], ldis + cur_loss[1],\
-                                                      gen_iter + 1, dis_iter + 1
+                    lgen, ldis, gen_iter, dis_iter = lgen + cur_loss[0], ldis + cur_loss[1],\
+                        gen_iter + 1, dis_iter + 1
             elif isinstance(loss, GeneratorLoss):
                 if self.ndiscriminator == -1 or\
                    self.loss_information["discriminator_iters"] % self.ncritic == 0:
@@ -287,9 +286,9 @@ class Trainer(object):
 
             self.save_model(epoch)
             self.train_logger(epoch,
-                              {'Generator Loss': self.loss_information['generator_losses'] /\
+                              {'Generator Loss': self.loss_information['generator_losses'] /
                               self.loss_information['generator_iters'],
-                              'Discriminator Loss': self.loss_information['discriminator_losses'] /\
+                              'Discriminator Loss': self.loss_information['discriminator_losses'] /
                               self.loss_information['discriminator_iters']})
             self.generator.eval()
             self.discriminator.eval()
