@@ -1,4 +1,5 @@
 import torch
+import torchvision
 from warnings import warn
 from ..losses import GeneratorLoss, DiscriminatorLoss
 
@@ -23,11 +24,11 @@ class Trainer(object):
         else:
             self.optimDis = optimDis(discriminator.parameters())
 
-        self.metrics = metrics
         self.combined_loss_obj = {}
         self.generator_loss_obj = {}
         self.discriminator_loss_obj = {}
         self.loss_logs = {}
+        self.metric_logs = {}
         for loss in losses:
             self.loss_logs[type(loss).__name__] = []
             if isinstance(loss, GeneratorLoss) and isinstance(loss, DiscriminatorLoss):
@@ -36,6 +37,16 @@ class Trainer(object):
                 self.generator_loss_obj[type(loss).__name__] = loss
             else:
                 self.discriminator_loss_obj[type(loss).__name__] = loss
+
+        if metrics is None:
+            self.metric_obj = None
+            self.metric_logs = None
+        else:
+            self.metric_obj = {}
+            self.metric_logs = {}
+            for metric in metrics:
+                self.metric_logs[type(metric).__name__] = []
+                self.metric_obj[type(metric).__name__] = metric
 
         self.batch_size = batch_size
         self.sample_size = sample_size
@@ -68,7 +79,9 @@ class Trainer(object):
             'combined_loss_obj': self.combined_loss_obj,
             'discriminator_loss_obj': self.discriminator_loss_obj,
             'generator_loss_obj': self.generator_loss_obj,
-            'loss_logs': self.loss_logs
+            'loss_logs': self.loss_logs,
+            'metric_obj': self.metric_obj,
+            'metric_logs': self.metric_logs
         }
         torch.save(model, save_path)
 
@@ -83,6 +96,8 @@ class Trainer(object):
             self.generator_loss_obj = check['generator_loss_obj']
             self.discriminator_loss_obj = check['discriminator_loss_obj']
             self.loss_logs = check['loss_logs']
+            self.metric_obj = check['metric_obj']
+            self.metric_logs = check['metric_logs']
             self.generator.load_state_dict(check['generator'])
             self.discriminator.load_state_dict(check['discriminator'])
             self.optimizer_generator.load_state_dict(check['optimizer_generator'])
@@ -92,3 +107,60 @@ class Trainer(object):
             self.start_epoch = 0
             self.generator_losses = []
             self.discriminator_losses = []
+
+    def sample_images(self, epoch):
+        save_path = "{}/epoch{}.png".format(self.recon, epoch + 1)
+        print("Generating and Saving Images to {}".format(save_path))
+        self.generator.eval()
+        with torch.no_grad():
+            images = self.generator(self.test_noise.to(self.device))
+            img = torchvision.utils.make_grid(images)
+            torchvision.utils.save_image(img, save_path, nrow=self.nrow)
+        self.generator.train()
+
+    def train_logger(self, epoch, running_losses):
+        print('Epoch {} Summary: '.format(epoch + 1))
+        for name, val in running_losses.items():
+            print('Mean {} : {}'.format(name, val))
+
+    def eval_ops(self, epoch, running_losses):
+        self.sample_images(epoch)
+        for name, val in running_losses.items():
+            self.loss_logs[name].append(val)
+
+    def training_loop(self, device_input, running_losses, has_labels):
+        for name, obj in self.generator_loss_obj.keys():
+            running_losses[name] += obj.train_ops(self.generator, self.discriminator,
+                                                  self.optimDis, device_input, has_labels)
+        for name, obj in self.discriminator_loss_obj.keys():
+                running_losses[name] += obj.train_ops(self.generator, self.discriminator,
+                                                      self.optimDis, device_input, has_labels)
+        for name, obj in self.combined_loss_obj.keys():
+            running_losses[name] += obj.train_ops(self.generator, self.discriminator, self.optimGen, self.optimDis,
+                                                  device_input, has_labels)
+
+    # TODO(Aniket1998): Add support for multiple iterations of the discriminator
+    def train(self, data_loader, has_labels=False, **kwargs):
+        for epoch in range(self.start_epoch, self.epochs):
+            self.generator.train()
+            self.discriminator.train()
+            # TODO(Aniket1998): Find faster alternatives to creating this dictionary every epoch
+            running_losses = {}
+            for name in self.loss_logs.keys():
+                running_losses[name] = 0.0
+
+            for i, inputs in enumerate(data_loader, 1):
+                device_input = []
+                for i in inputs:
+                    device_input.append(i.to(self.device))
+                self.training_loop(device_input, running_losses, has_labels)
+
+            for key in running_losses.keys():
+                running_losses[key] /= i
+
+            self.generator.eval()
+            self.discriminator.eval()
+            self.train_logger(epoch, running_losses)
+            self.eval_ops(epoch, running_losses)
+
+        print('Training is complete')
