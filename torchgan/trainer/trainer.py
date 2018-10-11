@@ -9,6 +9,7 @@ from ..losses.loss import GeneratorLoss, DiscriminatorLoss
 __all__ = ['Trainer']
 
 class Trainer(object):
+    # TODO(avik-pal): Needs support of Metrics
     def __init__(self, generator, discriminator, optimizer_generator, optimizer_discriminator,
                  losses_list, device=torch.device("cuda:0"), ndiscriminator=-1, batch_size=128,
                  sample_size=8, epochs=5, checkpoints="./model/gan", retain_checkpoints=5,
@@ -179,7 +180,11 @@ class Trainer(object):
         else:
             return self.loss_information["discriminator_iters"] % self.ndiscriminator != 0
 
+    def train_iter_custom(self):
+        pass
+
     def train_iter(self):
+        self.train_iter_custom()
         ldis = 0.0
         lgen = 0.0
         gen_iter = 0
