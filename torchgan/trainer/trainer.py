@@ -23,7 +23,7 @@ class Trainer(object):
             self.optimizer_generator = optimizer_generator(self.generator.parameters())
         if "optimizer_discriminator_options" in kwargs:
             self.optimizer_discriminator = optimizer_discriminator(self.discriminator.parameters(),
-                                                                   **kwargs["optimizer_discriminator_options"])
+                                                **kwargs["optimizer_discriminator_options"])
         else:
             self.optimizer_discriminator = optimizer_discriminator(self.discriminator.parameters())
         self.losses = {}
@@ -36,6 +36,8 @@ class Trainer(object):
             self.metrics = None
             self.metric_logs = None
         else:
+            self.metric_logs = {}
+            self.metrics = {}
             for metric in metrics_list:
                 name = type(metric).__name__
                 self.metric_logs[name] = []
@@ -132,9 +134,11 @@ class Trainer(object):
             self.generator_losses = []
             self.discriminator_losses = []
 
-    def _get_step(self, img=False):
-        # FIXME(avik-pal): Not a proper step size. Immediately fix this
-        if img or self.tensorboard_information["repeats"] < self.tensorboard_information["repeat_step"]:
+    # TODO(avik-pal): The _get_step will fail in a lot of cases
+    def _get_step(self, update=True):
+        if not update:
+            return self.tensorboard_information["step"]
+        if self.tensorboard_information["repeats"] < self.tensorboard_information["repeat_step"]:
             self.tensorboard_information["repeats"] += 1
             return self.tensorboard_information["step"]
         else:
@@ -150,14 +154,7 @@ class Trainer(object):
             img = torchvision.utils.make_grid(images)
             torchvision.utils.save_image(img, save_path, nrow=self.nrow)
             if self.log_tensorboard:
-                self.writer.add_image("Generated Samples", img, self._get_step())
-
-    def _verbose_matching(self, verbose):
-        # TODO(avik-pal) : better logging strategy
-        assert verbose >= 0 and verbose <= 5
-        self.niter_print_losses = 10**((6 - verbose) / 2)
-        self.save_epoch = 6 - verbose
-        self.generate_images = 6 - verbose
+                self.writer.add_image("Generated Samples", img, self._get_step(False))
 
     def train_logger(self, epoch, running_losses):
         print('Epoch {} Summary: '.format(epoch + 1))
@@ -165,15 +162,33 @@ class Trainer(object):
             print('Mean {} : {}'.format(name, val))
 
     # FIXME(Aniket1998) : Modify according to new updates
-    def tensorboard_log(self, running_generator_loss, running_discriminator_loss):
+    def tensorboard_log(self, metrics=False):
         if self.log_tensorboard:
-            self.writer.add_scalar("Discriminator Loss", running_discriminator_loss,
-                                                    self._get_step())
-            self.writer.add_scalar("Generator Loss", running_generator_loss,
-                                                    self._get_step())
-            self.writer.add_scalars("Losses", {'Generator Loss': running_generator_loss,
-                                               'Discriminator Loss': running_discriminator_loss},
-                                    self._get_step())
+            running_generator_loss = self.loss_information["generator_losses"] /\
+                                     self.loss_information["generator_iters"]
+            running_discriminator_loss = self.loss_information["discriminator_losses"] /\
+                                         self.loss_information["discriminator_iters"]
+            self.writer.add_scalar("Running Discriminator Loss",
+                                   running_discriminator_loss,
+                                   self._get_step())
+            self.writer.add_scalar("Running Generator Loss",
+                                   running_generator_loss,
+                                   self._get_step())
+            self.writer.add_scalars("Running Losses",
+                                   {"Running Discriminator Loss": running_discriminator_loss,
+                                    "Running Generator Loss": running_generator_loss},
+                                   self._get_step())
+            if metrics:
+                for name, metric in self.metric_logs:
+                    # FIXME(avik-pal): Metrics step should be different
+                    self.writer.add_scalar("Metrics/{}".format(name),
+                                           metric, self._get_step(False))
+            else:
+                for name, loss in self.loss_logs:
+                    if type(loss) is tuple:
+                        self.writer.add_scalar("Losses/{}".format(name),
+                                               loss, self._get_step(False))
+
 
     def _get_argument_maps(self, loss):
         sig = signature(loss.train_ops)
@@ -183,16 +198,10 @@ class Trainer(object):
                 raise Exception("Argument : %s needed for %s not present".format(arg, type(loss).__name__))
         return args
 
-    # TODO(Aniket1998): Check if the modifications are working properly
     def _store_loss_maps(self):
         self.loss_arg_maps = {}
         for name, loss in self.losses.items():
             self.loss_arg_maps[name] = self._get_argument_maps(loss)
-
-        # self.loss_arg_maps = []
-
-        # for loss in self.losses_list:
-        #    self.loss_arg_maps.append(self._get_argument_maps(loss))
 
     def train_stopper(self):
         if self.ndiscriminator == -1:
@@ -203,36 +212,28 @@ class Trainer(object):
     def train_iter_custom(self):
         pass
 
+    # TODO(avik-pal): Clean up this function and avoid returning values
     def train_iter(self):
         self.train_iter_custom()
-        ldis = 0.0
-        lgen = 0.0
-        gen_iter = 0
-        dis_iter = 0
+        ldis, lgen, dis_iter, gen_iter = 0.0, 0.0, 0, 0
         for name, loss in self.losses.items():
             if isinstance(loss, GeneratorLoss) and isinstance(loss, DiscriminatorLoss):
                 cur_loss = loss.train_ops(*itemgetter(*self.loss_arg_maps[name])(self.__dict__))
                 self.loss_logs[name].append(cur_loss)
                 if type(cur_loss) is tuple:
-                    ldis += cur_loss[1]
-                    lgen += cur_loss[0]
-                    gen_iter, dis_iter = 1, 1
-                else:
-                    ldis += cur_loss
-                    dis_iter = 1
+                    lgen, ldis, gen_iter, dis_iter  = lgen + cur_loss[0], ldis + cur_loss[1],\
+                                                      gen_iter + 1, dis_iter + 1
             elif isinstance(loss, GeneratorLoss):
                 if self.ndiscriminator == -1 or\
                    self.loss_information["discriminator_iters"] % self.ncritic == 0:
                     cur_loss = loss.train_ops(*itemgetter(*self.loss_arg_maps[name])(self.__dict__))
                     self.loss_logs[name].append(cur_loss)
-                    lgen += cur_loss
-                    gen_iter = 1
+                    lgen, gen_iter = lgen + cur_loss, gen_iter + 1
             elif isinstance(loss, DiscriminatorLoss):
                 cur_loss = loss.train_ops(*itemgetter(*self.loss_arg_maps[name])(self.__dict__))
                 self.loss_logs[name].append(cur_loss)
-                ldis += cur_loss
-                dis_iter = 1
-        return ldis, lgen, dis_iter, gen_iter
+                ldis, dis_iter = ldis + cur_loss, dis_iter + 1
+        return lgen, ldis, gen_iter, dis_iter
 
     def log_metrics(self, epoch):
         if self.metric_logs is None:
@@ -252,6 +253,7 @@ class Trainer(object):
                                                                     self.discriminator, kwargs[name + '_inputs']))
                     # TODO(Aniket1998): Add tensorboard logging of metrics
                     self.log_metrics(self, epoch)
+                    self.log_tensorboard(metrics=True)
 
     def train(self, data_loader, **kwargs):
         self.generator.train()
@@ -274,38 +276,32 @@ class Trainer(object):
                 self.noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1,
                                          device=self.device)
 
-                ldis, lgen, dis_iter, gen_iter = self.train_iter()
+                lgen, ldis, gen_iter, dis_iter = self.train_iter()
                 self.loss_information['generator_losses'].append(lgen)
                 self.loss_information['discriminator_losses'].append(ldis)
                 self.loss_information['generator_iters'] += gen_iter
                 self.loss_information['discriminator_iters'] += dis_iter
-                running_discriminator_loss += self.loss_information['discriminator_losses'][-1]
-                running_generator_loss += self.loss_information['generator_losses'][-1]
 
                 # TODO(Aniket1998): Modify this appropriately
-                self.tensorboard_log(running_generator_loss / self.loss_information['generator_iters'],
-                    running_discriminator_loss / self.loss_information['discriminator_iters'])
+                self.tensorboard_log()
 
                 if self.train_stopper():
                     break
 
-                if self.loss_information['discriminator_iters'] % self.niter_print_losses == 0 \
-                   and not self.loss_information['discriminator_iters'] == 0:
-                    self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
-                                      running_discriminator_loss / self.loss_information['discriminator_iters'],
-                                      epoch, self.loss_information['discriminator_iters'])
-
-            self.train_logger(running_generator_loss / self.loss_information['generator_iters'],
-                              running_discriminator_loss / self.loss_information['discriminator_iters'],
-                              epoch)
+            self.sample_images(epoch)
+            self.save_model(epoch)
+            self.train_logger(epoch,
+                              {'Generator Loss': running_generator_loss /\
+                              self.loss_information['generator_iters'],
+                              'Discriminator Loss': running_discriminator_loss /\
+                              self.loss_information['discriminator_iters']})
             self.generator.eval()
             self.discriminator.eval()
             self.eval_ops(epoch, **kwargs)
 
         print("Training of the Model is Complete")
 
-    def __call__(self, data_loader, verbose=1, **kwargs):
-        self._verbose_matching(verbose)
+    def __call__(self, data_loader, **kwargs):
         self._store_loss_maps()
         self.train(data_loader, **kwargs)
         self.writer.close()
