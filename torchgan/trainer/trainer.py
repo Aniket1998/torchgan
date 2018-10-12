@@ -161,8 +161,7 @@ class Trainer(object):
         for name, val in running_losses.items():
             print('Mean {} : {}'.format(name, val))
 
-    # FIXME(Aniket1998) : Modify according to new updates
-    def tensorboard_log(self, metrics=False):
+    def tensorboard_log_losses(self):
         if self.log_tensorboard:
             running_generator_loss = self.loss_information["generator_losses"] /\
                 self.loss_information["generator_iters"]
@@ -178,16 +177,20 @@ class Trainer(object):
                                    {"Running Discriminator Loss": running_discriminator_loss,
                                     "Running Generator Loss": running_generator_loss},
                                    self._get_step())
-            if metrics:
-                for name, metric in self.metric_logs.items():
-                    # FIXME(avik-pal): Metrics step should be different
+
+    def tensorboard_log_metrics(self):
+        if self.tensorboard_log:
+            for name, value in self.loss_logs.items():
+                if type(value) is tuple:
+                    self.writer.add_scalar('Losses/{}-Generator'.format(name), value[0], self._get_step(False))
+                    self.writer.add_scalar('Losses/{}-Discriminator'.format(name), value[1], self._get_step(False))
+                else:
+                    self.writer.add_scalar('Losses/{}'.format(name), value, self._get_step(False))
+            if self.metric_logs:
+                for name, value in self.metric_logs.items():
+                    # FIXME(Aniket1998): Metrics step should be number of epochs so far
                     self.writer.add_scalar("Metrics/{}".format(name),
-                                           metric, self._get_step(False))
-            else:
-                for name, loss in self.loss_logs.items():
-                    if type(loss) is tuple:
-                        self.writer.add_scalar("Losses/{}".format(name),
-                                               loss, self._get_step(False))
+                                           value, self._get_step(False))
 
     def _get_argument_maps(self, loss):
         sig = signature(loss.train_ops)
@@ -235,11 +238,12 @@ class Trainer(object):
         return lgen, ldis, gen_iter, dis_iter
 
     def log_metrics(self, epoch):
-        if self.metric_logs is None:
+        if not self.metric_logs:
             warn('No evaluation metric logs present')
         else:
             for name, val in self.metric_logs.item():
                 print('{} : {}'.format(name, val))
+            self.tensorboard_log_metrics()
 
     def eval_ops(self, epoch, **kwargs):
         self.sample_images(epoch)
@@ -250,9 +254,7 @@ class Trainer(object):
                 else:
                     self.metric_logs[name].append(metric.metric_ops(self.generator,
                                                                     self.discriminator, kwargs[name + '_inputs']))
-                    # TODO(Aniket1998): Add tensorboard logging of metrics
                     self.log_metrics(self, epoch)
-                    self.log_tensorboard(metrics=True)
 
     def train(self, data_loader, **kwargs):
         self.generator.train()
@@ -261,15 +263,18 @@ class Trainer(object):
         for epoch in range(self.start_epoch, self.epochs):
             self.generator.train()
             self.discriminator.train()
-            # FIXME(Aniket1998): All datasets may not be in (images, labels) format
-            for images, labels in data_loader:
+            for data in data_loader:
+                if type(data) is tuple:
+                    if not data[0].size()[0] == self.batch_size:
+                        continue
+                    self.real_inputs = data[0].to(self.device)
+                    self.labels = data[1].to(self.device)
+                else:
+                    if not data.size()[0] == self.batch_size:
+                        continue
+                    self.real_inputs = data[0].to(self.device)
 
-                if not images.size()[0] == self.batch_size:
-                    continue
-
-                self.real_inputs = images.to(self.device)
-                self.labels = labels.to(self.device)
-                self.noise = torch.randn(self.batch_size, self.generator.encoding_dims, 1, 1,
+                self.noise = torch.randn(self.batch_size, self.generator.encoding_dims,
                                          device=self.device)
 
                 lgen, ldis, gen_iter, dis_iter = self.train_iter()
@@ -278,8 +283,7 @@ class Trainer(object):
                 self.loss_information['generator_iters'] += gen_iter
                 self.loss_information['discriminator_iters'] += dis_iter
 
-                # TODO(Aniket1998): Modify this appropriately
-                self.tensorboard_log()
+                self.tensorboard_log_losses()
 
                 if self.train_stopper():
                     break
